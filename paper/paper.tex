@@ -1,0 +1,106 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage{geometry}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+\usepackage{titlesec}
+\usepackage[nottoc]{tocbibind}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage[table]{xcolor}
+\usepackage{tabularx}
+\usepackage{hhline}
+\usepackage{booktabs}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=magenta,
+    urlcolor=cyan,
+}
+
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{\thesubsubsection}{1em}{}
+
+\renewcommand{\contentsname}{\centerline{\bfseries Table of Contents}\vspace*{-1cm}}
+
+\setlength{\headheight}{40pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\fancyhead[C]{%
+  \small
+  \begin{tabular}{|p{9.5cm}|p{5cm}|}
+  \hline
+  ***System(Short for ***) & Issue: 1.0 \\ \hline
+  Hardware/Software Design Description (HSDD) & Issue Date:  09 / 29 / 2012 \\ \hline
+  \end{tabular}
+  \vspace*{1em}
+}
+
+\begin{document}
+
+\begin{titlepage}
+\raggedleft
+\rule{\linewidth}{3pt}
+
+\vspace{1.5cm}
+
+{\LARGE\bfseries Hardware/Software Design Description\par}
+
+\vspace{1.5cm}
+
+{\Large\bfseries For\par}
+
+\vspace{1.5cm}
+
+{\Huge\bfseries *** System\par}
+
+\vspace{1.5cm}
+
+{\bfseries Version 1.0 approved} \\ [0.8cm]
+
+\vspace{1.5cm}
+
+{\bfseries Group ***} \\ [0.8cm]
+
+\vspace{1.5cm}
+
+{\bfseries Date ***} \\ [3cm]
+\end{titlepage}
+
+\begin{center}
+  \Large\bfseries
+  Revision History
+\end{center}
+
+\begin{tabularx}{0.9\textwidth}{|X|c|X|c|}
+  \hline
+  \rowcolor[RGB]{180,180,180}
+  \textbf{Name} & \textbf{Date} & \textbf{Reason For Changes} & \textbf{Version} \\
+  \hline\hline
+
+  *** & 2022-08-17 & Initial version. & 0.1 \\
+  \hline
+
+  & & & \\ \hline
+  & & & \\ \hline
+  & & & \\ \hline
+  & & & \\ \hline
+\end{tabularx}
+
+\clearpage
+
+\tableofcontents
+
+\clearpage
+
+% Main Body
+\input{body/1_Introduction} \clearpage
+\input{body/2_Hardware_Design} \clearpage
+\input{body/3_Software_Design} \clearpage
+\input{body/4_User_Interface} \clearpage
+
+\end{document}
