@@ -2,6 +2,7 @@
 
 \usepackage{geometry}
 \geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+
 \usepackage{titlesec}
 \usepackage[nottoc]{tocbibind}
 \usepackage{hyperref}
@@ -20,16 +21,19 @@
     urlcolor=cyan,
 }
 
+% Title Format
 \titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
 \titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
 \titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{\thesubsubsection}{1em}{}
 
 \renewcommand{\contentsname}{\centerline{\bfseries Table of Contents}\vspace*{-1cm}}
 
+% Header/Footer Configuration
 \setlength{\headheight}{40pt}
 \pagestyle{fancy}
 \fancyhf{}
 \fancyfoot[C]{\thepage}
+
 \fancyhead[C]{%
   \small
   \begin{tabular}{|p{9.5cm}|p{5cm}|}
@@ -42,6 +46,7 @@
 
 \begin{document}
 
+% Title Page
 \begin{titlepage}
 \raggedleft
 \rule{\linewidth}{3pt}
@@ -71,6 +76,7 @@
 {\bfseries Date ***} \\ [3cm]
 \end{titlepage}
 
+% Revision History
 \begin{center}
   \Large\bfseries
   Revision History
@@ -93,8 +99,8 @@
 
 \clearpage
 
+% Table of Contents
 \tableofcontents
-
 \clearpage
 
 % Main Body
