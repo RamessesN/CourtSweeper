@@ -3,48 +3,70 @@
 
 \textcolor{gray}{\rule{\linewidth}{3pt}}
 
-\subsection{Architecture Overview}
-\label{sec:architecture}
+
+The software subsystem of CourtSweeper operates primarily on the NVIDIA Jetson Orin NX edge computing unit. It utilizes a multi-threaded pipeline designed for high-throughput and low-latency operation. The architecture bridges the sensory inputs (DJI camera stream) and the mechanical outputs (Mecanum chassis navigation and 775 motor actuation) through an AI-driven decision-making core governed by a Finite State Machine (FSM).
 
 
-\subsubsection{Video I/O Package}
-\label{sec:video-io}
+\subsection{Chassis Navigation \& DJI SDK Integration}
+\label{sec:dji-sdk}
+To interface with the mobile platform, the system implements the \textbf{RoboMaster-SDK-Ultra}, a customized integration layer offering native cross-compatibility across Python 3.8 $\sim$ 3.13. This architectural optimization eliminates the necessity of isolating DJI hardware drivers from the modern YOLO and OpenCV pipelines. By unifying the execution environment, the system entirely circumvents the severe latency and memory overhead associated with Inter-Process Communication (IPC) when transferring large video matrices.
+
+Operationally, this unified SDK manages a high-speed, bidirectional TCP/UDP connection over the local network. It directly extracts the raw H.264 video stream from the integrated HD camera for zero-copy visual processing, while concurrently transmitting real-time translational ($V_x, V_y$) and rotational ($\omega$) velocity commands back to the holonomic drive system based on the AI's trajectory calculations.
 
 
-\subsubsection{Pre-Preprocessing Package}
+\subsection{Video I/O \& Pre-processing Package}
 \label{sec:preprocessing}
+Before AI inference, the raw video feed must be conditioned. This package decodes the H.264 stream into discrete frame matrices. The pre-processing pipeline includes:
+\begin{itemize}
+  \item \textbf{Resizing:} Scaling the HD frames to the specific input tensor dimensions required by the YOLO model.
+  \item \textbf{Color Space Conversion:} Converting the default color space to RGB format and normalizing pixel values to a $[0, 1]$ range for optimized neural network ingestion.
+\end{itemize}
 
 
-\subsubsection{Video Processing Package}
+\subsection{Video Processing Package (YOLO \& OpenCV)}
 \label{sec:video-processing}
+This is the core perception module. Utilizing the YOLO architecture accelerated by TensorRT on the Jetson Orin NX, the package performs real-time object detection to identify tennis balls. Once a target is detected, OpenCV functions are utilized to extract the spatial coordinates of the bounding box $(x, y, width, height)$ and calculate the centroid of the target. Non-Maximum Suppression (NMS) is applied to eliminate redundant overlapping boxes. The annotated frames with visualized bounding boxes are then encoded into an MJPEG stream for iOS UI presentation.
 
 
-\subsubsection{Event Recognition Package}
+\subsection{FSM-Based Event Recognition \& Control Package}
 \label{sec:event-recognition}
-
-
-\subsubsection{Presentation Package}
-\label{sec:presentation}
+To ensure system reliability, facilitate secondary development, and streamline future maintenance, the robot's core behavioral logic is strictly governed by a robust Finite State Machine (FSM). This package translates visual data into physical action through clear, decoupled state transitions:
+\begin{itemize}
+  \item \textbf{State 0 - IDLE:} The system awaits commands from the iOS UI. Manual teleoperation commands override all autonomous behaviors.
+  \item \textbf{State 1 - SEARCHING:} In the absence of a valid YOLO bounding box, the FSM transitions to the searching state. The DJI chassis executes a predefined patrol pattern to scan the court environment.
+  \item \textbf{State 2 - TRACKING (Target Alignment):} Once a tennis ball is detected, the FSM transitions to Tracking. A PD controller calculates the horizontal pixel offset between the ball's centroid and the camera's center axis. This error dictates the steering and strafing commands sent to the DJI SDK to keep the ball centered while approaching.
+  \item \textbf{State 3 - INGESTING (Intake Trigger):} The system continuously monitors the vertical coordinate ($y$) and the area ($width \times height$) of the bounding box. When the ball reaches the lower frame threshold and the area exceeds a predefined trigger threshold (indicating physical contact), the FSM transitions to Ingesting. A 5V PWM signal is sent via the Jetson's GPIO to the BTS7960 drivers, spinning the 775 motors inward at predefined duty cycles to swallow the ball.
+\end{itemize}
+This state-driven architecture completely decouples the perception pipeline from the mechanical actuation, significantly reducing logical conflicts during rapid development iterations.
 
 
 \subsection{Class Design}
 \label{sec:class-design}
 
-
-\subsubsection{*** Description}
+\subsubsection{VisionNavigationManager Class Description}
 \label{sec:class-description}
+The \texttt{VisionNavigationManager} acts as the central orchestrator, bridging the computer vision pipeline with the mechanical execution modules through the implemented FSM logic.
 
-\begin{table}[h]
+\begin{table}[H]
+  \footnotesize
   \centering
+  \renewcommand{\arraystretch}{1.3}
   \begin{tabularx}{\textwidth}{|l|X|}
     \hline
-    Class Name & *** \\ \hline
-    Inherited class & None \\ \hline
-    Aggregated Classes & None \\ \hline
-    Associated Classes &  \\ \hline
-    Data Members &  \\ \hline
-    Member Functions &  \\ \hline
-    Data Structures &  \\ \hline
-    Processing &  \\ \hline
+    \rowcolor[RGB]{220,220,220} \textbf{Attribute} & \textbf{Description} \\ \hline
+    Class Name & \texttt{VisionNavigationManager} \\ \hline
+    Aggregated Classes & \texttt{YoloDetector}, \texttt{DjiChassisController}, \texttt{MotorPwmDriver} \\ \hline
+    Associated Classes & \texttt{MjpegStreamServer} \\ \hline
+    Data Members & 
+    \textbullet~ \texttt{current\_state}: Enum (IDLE, SEARCHING, TRACKING, INGESTING) representing the active FSM state. \newline
+    \textbullet~ \texttt{target\_centroid}: Tuple $(x, y)$ representing the ball's center. \newline
+    \textbullet~ \texttt{intake\_threshold\_area}: Integer defining the trigger size for the motors. \\ \hline
+    Member Functions & 
+    \textbullet~ \texttt{update\_state\_machine()}: Evaluates vision data to trigger FSM state transitions. \newline
+    \textbullet~ \texttt{process\_video\_frame()}: Fetches and passes frames to \texttt{YoloDetector}. \newline
+    \textbullet~ \texttt{compute\_chassis\_velocity()}: Runs PD logic to align the chassis during the TRACKING state. \newline
+    \textbullet~ \texttt{execute\_intake\_sequence()}: Activates \texttt{MotorPwmDriver} during the INGESTING state. \\ \hline
+    Data Structures & Dictionary/Struct to hold target properties (confidence score, bounding box array, timestamp). \\ \hline
+    Processing & Continuously loops in a separate thread, running \texttt{update\_state\_machine()} to determine behavior, computing motor/chassis offsets, dispatching commands, and feeding the MJPEG server. \\ \hline
   \end{tabularx}
 \end{table}

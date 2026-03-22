@@ -1,0 +1,4 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+conda\PYG{+w}{ }create\PYG{+w}{ }\PYGZhy{}\PYGZhy{}name\PYG{+w}{ }\PYGZlt{}env\PYGZus{}name\PYGZgt{}\PYG{+w}{ }\PYG{n+nv}{python}\PYG{o}{=}\PYG{l+m}{3}.10
+conda\PYG{+w}{ }activate\PYG{+w}{ }\PYGZlt{}env\PYGZus{}name\PYGZgt{}
+\end{MintedVerbatim}
