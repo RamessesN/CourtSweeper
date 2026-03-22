@@ -61,14 +61,26 @@ This document describes the design of the CourtSweeper, an intelligent, vision-g
 \textbf{OpenCV}
 & Open Source Computer Vision Library, utilized for image processing, color space conversion, and bounding box coordinate extraction. \\
 
+\textbf{FSM}
+& Finite State Machine, the logic architecture governing the autonomous and manual behavioral states of the robot. \\
+
+\textbf{IPC}
+& Inter-Process Communication, a data exchange mechanism between OS processes. The custom SDK circumvents IPC to minimize video latency. \\
+
 \textbf{Mecanum Wheels} 
 & Omnidirectional wheels on the RoboMaster EP chassis that allow the robot to move in any direction without changing its orientation. \\
 
 \textbf{PWM} 
 & Pulse Width Modulation, utilized for custom motor speed regulation in the 775 motor-driven intake mechanism. \\
 
+\textbf{LiPo}
+& Lithium Polymer, the high-discharge-rate battery chemistry utilized for the heavy-duty 3S actuation power source. \\
+
 \textbf{MJPEG} 
 & Motion JPEG, a video compression format used to stream AI-processed (bounding-box annotated) video frames to the iOS client with low latency. \\
+
+\textbf{HUD}
+& Heads-Up Display, the primary transparent-style layout utilized in the iOS application for concurrent video and telemetry monitoring. \\
 
 \textbf{AP Mode}
 & Access Point Mode, allowing the Jetson Orin NX to act as a localized Wi-Fi router for direct mobile connection in outdoor environments. \\
@@ -91,7 +103,7 @@ To provide a structured and logical flow of the system architecture, this docume
 
 {
 \footnotesize
-\renewcommand{\arraystretch}{1.5} % 增加行高，让表格看起来更舒展
+\renewcommand{\arraystretch}{1.5}
 \begin{longtable}{p{2.5cm} p{5.0cm} p{6.5cm}}
 \caption{Organization of this Hardware/Software Design Description.}
 \label{tab:document_structure} \\
@@ -130,19 +142,20 @@ Provides the physical and electrical blueprint of the robot. It details the inte
 \textbullet~DJI SDK Integration \newline
 \textbullet~Video Pre-processing \newline
 \textbullet~YOLO and OpenCV Pipeline \newline
-\textbullet~Event Recognition \& Control
+\textbullet~FSM-Based Control Logic \newline
+\textbullet~Class Design \& Architecture
 & 
-Describes the overarching onboard AI architecture. It breaks down the integration of the custom SDK for chassis navigation, the computer vision pipeline for target detection, and the closed-loop control logic for the intake motors. \\
+Describes the overarching onboard AI architecture. It breaks down the integration of the custom SDK for chassis navigation, the computer vision pipeline for target detection, and the finite state machine governing the intake motors. \\
 \hline
 
 % ================= UI =================
 \textbf{Section \ref{sec:ui_design}} \newline \textit{UI Design}
 & 
-\textbullet~UI Layout \& Interaction \newline
-\textbullet~Video Streaming (MJPEG) \newline
-\textbullet~Teleoperation Protocols
+\textbullet~Main Dashboard \& Video HUD \newline
+\textbullet~Teleoperation \& Control Panel \newline
+\textbullet~Telemetry \& Log Console
 & 
-Outlines the Swift-based iOS application architecture, detailing the visual presentation package, network socket communication, and low-latency remote control protocols. \\
+Outlines the Swift-based iOS application architecture, detailing the visual presentation layer, network socket communication, and real-time system monitoring protocols. \\
 
 \end{longtable}
 }
