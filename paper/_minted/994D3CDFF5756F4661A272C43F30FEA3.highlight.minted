@@ -1,0 +1,5 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+pip\PYG{+w}{ }install\PYG{+w}{ }ultralytics
+pip\PYG{+w}{ }uninstall\PYG{+w}{ }torch\PYG{+w}{ }torchvision
+pip\PYG{+w}{ }install\PYG{+w}{ }\PYG{l+s+s2}{\PYGZdq{}numpy\PYGZlt{}2\PYGZdq{}}\PYG{+w}{ }\PYGZhy{}\PYGZhy{}force\PYGZhy{}reinstall
+\end{MintedVerbatim}

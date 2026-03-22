@@ -1,0 +1,3 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+sudo\PYG{+w}{ }apt\PYGZhy{}get\PYG{+w}{ }update\PYG{+w}{ }\PYG{o}{\PYGZam{}\PYGZam{}}\PYG{+w}{ }sudo\PYG{+w}{ }apt\PYGZhy{}get\PYG{+w}{ }upgrade
+\end{MintedVerbatim}

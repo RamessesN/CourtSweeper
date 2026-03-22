@@ -1,0 +1,10 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+sudo\PYG{+w}{ }apt\PYGZhy{}get\PYG{+w}{ }install\PYG{+w}{ }nano\PYG{+w}{ }dphys\PYGZhy{}swapfile
+sudo\PYG{+w}{ }nano\PYG{+w}{ }/sbin/dphys\PYGZhy{}swapfile\PYG{+w}{  }\PYG{c+c1}{\PYGZsh{} Increase swap size}
+sudo\PYG{+w}{ }reboot
+free\PYG{+w}{ }\PYGZhy{}m\PYG{+w}{  }\PYG{c+c1}{\PYGZsh{} Verify memory}
+
+\PYG{c+c1}{\PYGZsh{} Run compilation script}
+sudo\PYG{+w}{ }chmod\PYG{+w}{ }\PYG{l+m}{755}\PYG{+w}{ }./OpenCV\PYGZhy{}4\PYGZhy{}11\PYGZhy{}0.sh
+./OpenCV\PYGZhy{}4\PYGZhy{}11\PYGZhy{}0.sh
+\end{MintedVerbatim}

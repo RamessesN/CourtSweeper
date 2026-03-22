@@ -3,28 +3,67 @@
 \usepackage{geometry}
 \geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
 
-\usepackage{titlesec}
-\usepackage[nottoc]{tocbibind}
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+
+\usepackage[backend=biber]{biblatex}
+\addbibresource{references.bib}
+
 \usepackage{hyperref}
+\hypersetup{
+	colorlinks=true,
+	linkcolor=blue,
+	urlcolor=blue,
+	citecolor=blue
+}
+
+\usepackage{minted}
+\usemintedstyle{vs}
+\setminted{
+  fontsize=\footnotesize,
+  linenos,
+  breaklines,
+  breakanywhere=true,
+  frame=single,
+  framesep=2mm,
+  tabsize=2,
+  bgcolor=black!5
+}
+
+\usepackage{titlesec}
+\titlespacing*{\paragraph}
+{0pt}
+{0.3em}
+{0.8em}
+
+\usepackage[nottoc]{tocbibind}
 \usepackage{graphicx}
 \usepackage{longtable}
+\usepackage{multirow}
 \usepackage{fancyhdr}
-\usepackage[table]{xcolor}
+\usepackage[table, dvipsnames]{xcolor}
 \usepackage{tabularx}
 \usepackage{hhline}
 \usepackage{booktabs}
-
-\hypersetup{
-    colorlinks=true,
-    linkcolor=black,
-    filecolor=magenta,
-    urlcolor=cyan,
-}
 
 % Title Format
 \titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
 \titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
 \titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{\thesubsubsection}{1em}{}
+
+% Revision Page Header Config
+\fancypagestyle{nofooter}{
+  \fancyhf{}
+  \fancyhead[C]{%
+    \small
+    \begin{tabular}{|p{9.5cm}|p{5cm}|}
+    \hline
+    Vision-Based Retriever System (Short for VBRS) & Issue: 1.0 \\ \hline
+    Hardware/Software Design Description (HSDD) & Issue Date: 03 / 22 / 2026 \\ \hline
+    \end{tabular}
+    \vspace*{1em}
+  }
+}
 
 \renewcommand{\contentsname}{\centerline{\bfseries Table of Contents}\vspace*{-1cm}}
 
@@ -38,8 +77,8 @@
   \small
   \begin{tabular}{|p{9.5cm}|p{5cm}|}
   \hline
-  ***System(Short for ***) & Issue: 1.0 \\ \hline
-  Hardware/Software Design Description (HSDD) & Issue Date:  09 / 29 / 2012 \\ \hline
+  Vision-Based Retriever System (Short for VBRS) & Issue: 1.0 \\ \hline
+  Hardware/Software Design Description (HSDD) & Issue Date: 03 / 18 / 2026 \\ \hline
   \end{tabular}
   \vspace*{1em}
 }
@@ -61,7 +100,7 @@
 
 \vspace{1.5cm}
 
-{\Huge\bfseries *** System\par}
+{\Huge\bfseries CourtSweeper: A Vision-Based Tennis Ball Retriever with Dual-Roller Intake Mechanism \par}
 
 \vspace{1.5cm}
 
@@ -69,14 +108,16 @@
 
 \vspace{1.5cm}
 
-{\bfseries Group ***} \\ [0.8cm]
+{\bfseries Group 13} \\ [0.8cm]
 
 \vspace{1.5cm}
 
-{\bfseries Date ***} \\ [3cm]
+{\bfseries Date 2026-03-18} \\ [3cm]
 \end{titlepage}
 
 % Revision History
+\thispagestyle{nofooter}
+
 \begin{center}
   \Large\bfseries
   Revision History
@@ -85,28 +126,32 @@
 \begin{tabularx}{0.9\textwidth}{|X|c|X|c|}
   \hline
   \rowcolor[RGB]{180,180,180}
-  \textbf{Name} & \textbf{Date} & \textbf{Reason For Changes} & \textbf{Version} \\
-  \hline\hline
+  \textbf{Name} & \textbf{Date} & \textbf{Reason For Changes} & \textbf{Version} \\ \hline
 
-  *** & 2022-08-17 & Initial version. & 0.1 \\
-  \hline
-
-  & & & \\ \hline
-  & & & \\ \hline
-  & & & \\ \hline
-  & & & \\ \hline
+  Yilin Zhang & 2026-03-17 & Initial document creation and LaTeX template configuration. & 0.1 \\ \hline
+  Yingrui Sun & 2026-03-18 & Drafted initial hardware specifications, including dual-roller mechanism and power system. & 0.2 \\ \hline
+  Shijia Luo & 2026-03-18 & Drafted software architecture, including machine vision algorithms and communication protocols. & 0.3 \\ \hline
+  Yuwei Zhao & 2026-03-22 & Comprehensive review and optimization. Finalized system design and approved Baseline 1.0. & 1.0 \\ \hline
 \end{tabularx}
 
 \clearpage
 
 % Table of Contents
+{
+\hypersetup{linkcolor=black}
 \tableofcontents
+}
+\thispagestyle{empty}
+
 \clearpage
 
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
 % Main Body
-\input{body/1_Introduction} \clearpage
-\input{body/2_Hardware_Design} \clearpage
-\input{body/3_Software_Design} \clearpage
-\input{body/4_User_Interface} \clearpage
+\input{body/1_Introduction}
+\input{body/2_Hardware_Design}
+\input{body/3_Software_Design}
+\input{body/4_User_Interface}
 
 \end{document}

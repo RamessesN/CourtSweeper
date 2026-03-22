@@ -3,46 +3,146 @@
 
 \textcolor{gray}{\rule{\linewidth}{3pt}}
 
+
 \subsection{Purpose}
 \label{sec:purpose}
-This document describes the preliminary design of ***.
+This document describes the preliminary design of the CourtSweeper system. Its primary purpose is to provide a comprehensive architectural overview and detailed engineering specifications, serving as the Baseline 1.0 blueprint for the development team. It details the physical mechanical structures, electronic power systems, computer vision algorithms, and the iOS-based user interface to guide the implementation, integration, and testing phases.
 
 
 \subsection{Scope}
-\label{sec:scope}
-This document describes the design of the ***.
+This document describes the design of the CourtSweeper, an intelligent, vision-guided robotic vehicle designed to automate the retrieval of scattered tennis balls in sports facilities. The scope of this system encompasses:
+\begin{itemize}
+  \item \textbf{Hardware Subsystem:} A hybrid mobile platform utilizing the DJI RoboMaster EP~\cite{robomaster_ep} chassis to provide omnidirectional mobility and the primary HD camera feed. It is physically integrated with a custom-built, high-torque dual-roller intake mechanism, which is driven by 775 D-shaft motors and BTS7960 drivers for ball collection, and an NVIDIA Jetson Orin NX~\cite{jetson_orin} acting as the central edge computing unit.
+  \item \textbf{Software Subsystem:} An onboard AI pipeline utilizing the RoboMaster-SDK-Ultra~\cite{robomaster_sdk_ultra} (a customized, high-performance fork of the official DJI SDK developed specifically for this project) for vehicle telemetry and camera stream extraction. This is combined with the YOLO~\cite{yolo26} object detection model and OpenCV, enabling real-time target recognition, spatial coordinate mapping, and dynamic intake motor control via PWM.
+  \item \textbf{Remote Control \& UI:} A native iOS application~\cite{apple_doc} developed in Swift, establishing a localized Wi-Fi connection to stream AI-annotated video feeds (via MJPEG) and transmit low-latency teleoperation commands to the Jetson unit.
+\end{itemize}
 
 
 \subsection{Definitions, Acronyms and Abbreviations}
 \label{sec:definitions}
+{
+\footnotesize
+\begin{longtable}{p{3.5cm} p{10.0cm}}
+\caption{List of abbreviations and terminology used in the CourtSweeper.}
+\label{tab:abbreviations} \\
 
-\begin{enumerate}
-  \item ***.
-  \item ***:
-  \item ***:
-\end{enumerate}
+\toprule
+\textbf{Term} & \textbf{Definition} \\
+\midrule
+\endfirsthead
+
+\multicolumn{2}{c}{\textit{Table \thetable\ continued}} \\
+\toprule
+\textbf{Term} & \textbf{Definition} \\
+\midrule
+\endhead
+
+\bottomrule
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+\textbf{HSDD} 
+& Hardware/Software Design Description. \\
+
+\textbf{CS} 
+& CourtSweeper, the designated project name for the tennis ball collecting robot. \\
+
+\textbf{UI} 
+& User Interface, specifically referring to the iOS application in this project. \\
+
+\textbf{YOLO} 
+& You Only Look Once (specifically yolo26), a SOTA real-time object detection system utilized for high-speed tennis ball recognition. \\
+
+\textbf{RoboMaster-SDK-Ultra} 
+& A customized, advanced fork of the official DJI SDK (developed by \href{https://github.com/RamessesN}{RamessesN}), utilized to interface with the RoboMaster EP chassis, execute complex telemetry, and extract raw HD camera feeds. \\
+
+\textbf{OpenCV}
+& Open Source Computer Vision Library, utilized for image processing, color space conversion, and bounding box coordinate extraction. \\
+
+\textbf{Mecanum Wheels} 
+& Omnidirectional wheels on the RoboMaster EP chassis that allow the robot to move in any direction without changing its orientation. \\
+
+\textbf{PWM} 
+& Pulse Width Modulation, utilized for custom motor speed regulation in the 775 motor-driven intake mechanism. \\
+
+\textbf{MJPEG} 
+& Motion JPEG, a video compression format used to stream AI-processed (bounding-box annotated) video frames to the iOS client with low latency. \\
+
+\textbf{AP Mode}
+& Access Point Mode, allowing the Jetson Orin NX to act as a localized Wi-Fi router for direct mobile connection in outdoor environments. \\
+
+\end{longtable}
+}
 
 
 \subsection{References}
 \label{sec:references}
+{
+  \hypersetup{urlcolor=black}
+  \printbibliography[heading=none]
+}
 
 
 \subsection{Organization of Document}
 \label{sec:organization}
+To provide a structured and logical flow of the system architecture, this document is organized into the following major sections:
 
-This document is organized as follows:
-\begin{itemize}
-  \item Hardware design
-  \item Camera Selection
-  \item Camera Setup 
-  \item Basic Computer Requirement
-  \item Software Modules Design
-  \item Architecture Overview
-  \item Video I/O Package
-  \item Pre-Preprocessing Package
-  \item Video Processing Package
-  \item Event Recognition Package
-  \item Presentation Package
-  \item Class Design
-  \item User Interface Design
-\end{itemize}
+{
+\footnotesize
+\renewcommand{\arraystretch}{1.5} % 增加行高，让表格看起来更舒展
+\begin{longtable}{p{2.5cm} p{5.0cm} p{6.5cm}}
+\caption{Organization of this Hardware/Software Design Description.}
+\label{tab:document_structure} \\
+
+\toprule
+\textbf{Section} & \textbf{Core Content} & \textbf{Description} \\
+\midrule
+\endfirsthead
+
+\multicolumn{3}{c}{\textit{Table \thetable\ continued}} \\
+\toprule
+\textbf{Section} & \textbf{Core Content} & \textbf{Description} \\
+\midrule
+\endhead
+
+\bottomrule
+\endfoot
+
+\bottomrule
+\endlastfoot
+
+% ================= Hardware =================
+\textbf{Section \ref{sec:hardware}} \newline \textit{Hardware Design}
+& 
+\textbullet~DJI RoboMaster EP Chassis \newline
+\textbullet~Custom Intake Mechanism \newline
+\textbullet~Jetson Orin NX Setup \newline
+\textbullet~Power Management System
+& 
+Provides the physical and electrical blueprint of the robot. It details the integration of the hybrid mobile platform, the custom 775 motor-driven dual-roller mechanism, and the multi-voltage power distribution topology. \\
+\hline
+
+% ================= Software =================
+\textbf{Section \ref{sec:software}} \newline \textit{Software Design}
+& 
+\textbullet~DJI SDK Integration \newline
+\textbullet~Video Pre-processing \newline
+\textbullet~YOLO and OpenCV Pipeline \newline
+\textbullet~Event Recognition \& Control
+& 
+Describes the overarching onboard AI architecture. It breaks down the integration of the custom SDK for chassis navigation, the computer vision pipeline for target detection, and the closed-loop control logic for the intake motors. \\
+\hline
+
+% ================= UI =================
+\textbf{Section \ref{sec:ui_design}} \newline \textit{UI Design}
+& 
+\textbullet~UI Layout \& Interaction \newline
+\textbullet~Video Streaming (MJPEG) \newline
+\textbullet~Teleoperation Protocols
+& 
+Outlines the Swift-based iOS application architecture, detailing the visual presentation package, network socket communication, and low-latency remote control protocols. \\
+
+\end{longtable}
+}
