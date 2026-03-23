@@ -51,6 +51,18 @@
 \usepackage{tabularx}
 \usepackage{hhline}
 \usepackage{booktabs}
+\usepackage{xstring}
+
+\newcommand{\ieeesection}[2][]{%
+  \StrLeft{#2}{1}[\FirstLetter]%
+  \StrGobbleLeft{#2}{1}[\RestLetters]%
+  \section[#1]{%
+    \MakeUppercase{%
+      {\fontsize{18}{20}\selectfont\bfseries \FirstLetter}%
+      {\fontsize{14}{16}\selectfont\bfseries \RestLetters}%
+    }%
+  }%
+}
 
 % Title Format
 \titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
@@ -65,7 +77,7 @@
     \begin{tabular}{|p{9.5cm}|p{5cm}|}
     \hline
     Vision-Based Retriever System (Short for VBRS) & Issue: 1.0 \\ \hline
-    Hardware/Software Design Description (HSDD) & Issue Date: 03 / 22 / 2026 \\ \hline
+    Hardware/Software Design Description (HSDD) & Issue Date: 03 / 23 / 2026 \\ \hline
     \end{tabular}
     \vspace*{1em}
   }
@@ -84,7 +96,7 @@
   \begin{tabular}{|p{9.5cm}|p{5cm}|}
   \hline
   Vision-Based Retriever System (Short for VBRS) & Issue: 1.0 \\ \hline
-  Hardware/Software Design Description (HSDD) & Issue Date: 03 / 22 / 2026 \\ \hline
+  Hardware/Software Design Description (HSDD) & Issue Date: 03 / 23 / 2026 \\ \hline
   \end{tabular}
   \vspace*{1em}
 }
@@ -118,7 +130,7 @@
 
 \vspace{1.5cm}
 
-{\bfseries Date 2026-03-18} \\ [3cm]
+{\bfseries Date 2026-03-23} \\ [3cm]
 \end{titlepage}
 
 % Revision History
@@ -137,7 +149,7 @@
   Yilin Zhang & 2026-03-17 & Initial document creation and LaTeX template configuration. & 0.1 \\ \hline
   Yingrui Sun & 2026-03-18 & Drafted initial hardware specifications, including dual-roller mechanism and power system. & 0.2 \\ \hline
   Shijia Luo & 2026-03-18 & Drafted software architecture, including machine vision algorithms and communication protocols. & 0.3 \\ \hline
-  Yuwei Zhao & 2026-03-22 & Comprehensive review and optimization. Finalized system design and approved Baseline 1.0. & 1.0 \\ \hline
+  Yuwei Zhao & 2026-03-23 & Comprehensive review and optimization. Finalized system design and approved Baseline 1.0. & 1.0 \\ \hline
 \end{tabularx}
 
 \clearpage
