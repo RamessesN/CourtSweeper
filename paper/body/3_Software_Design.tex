@@ -1,20 +1,20 @@
-\section{SOFTWARE MODULES DESIGN}
+\ieeesection[SOFTWARE MODULES DESIGN]{SOFTWARE MODULES DESIGN}
 \label{sec:software}
 
 \textcolor{gray}{\rule{\linewidth}{3pt}}
 
 
+\subsection{Architecture Overview}
+\label{sec:arch_overview}
 The software subsystem of CourtSweeper operates primarily on the NVIDIA Jetson Orin NX edge computing unit. It utilizes a multi-threaded pipeline designed for high-throughput and low-latency operation. The architecture bridges the sensory inputs (DJI camera stream) and the mechanical outputs (Mecanum chassis navigation and 775 motor actuation) through an AI-driven decision-making core governed by a Finite State Machine (FSM).
 
-
-\subsection{Chassis Navigation \& DJI SDK Integration}
+\subsubsection{Chassis Navigation \& DJI SDK Integration}
 \label{sec:dji-sdk}
 To interface with the mobile platform, the system implements the \textbf{RoboMaster-SDK-Ultra}, a customized integration layer offering native cross-compatibility across Python 3.8 $\sim$ 3.13. This architectural optimization eliminates the necessity of isolating DJI hardware drivers from the modern YOLO and OpenCV pipelines. By unifying the execution environment, the system entirely circumvents the severe latency and memory overhead associated with Inter-Process Communication (IPC) when transferring large video matrices.
 
 Operationally, this unified SDK manages a high-speed, bidirectional TCP/UDP connection over the local network. It directly extracts the raw H.264 video stream from the integrated HD camera for zero-copy visual processing, while concurrently transmitting real-time translational ($V_x, V_y$) and rotational ($\omega$) velocity commands back to the holonomic drive system based on the AI's trajectory calculations.
 
-
-\subsection{Video I/O \& Pre-processing Package}
+\subsubsection{Video I/O \& Pre-processing Package}
 \label{sec:preprocessing}
 Before AI inference, the raw video feed must be conditioned. This package decodes the H.264 stream into discrete frame matrices. The pre-processing pipeline includes:
 \begin{itemize}
@@ -22,13 +22,11 @@ Before AI inference, the raw video feed must be conditioned. This package decode
   \item \textbf{Color Space Conversion:} Converting the default color space to RGB format and normalizing pixel values to a $[0, 1]$ range for optimized neural network ingestion.
 \end{itemize}
 
-
-\subsection{Video Processing Package (YOLO \& OpenCV)}
+\subsubsection{Video Processing Package (YOLO \& OpenCV)}
 \label{sec:video-processing}
 This is the core perception module. Utilizing the YOLO architecture accelerated by TensorRT on the Jetson Orin NX, the package performs real-time object detection to identify tennis balls. Once a target is detected, OpenCV functions are utilized to extract the spatial coordinates of the bounding box $(x, y, width, height)$ and calculate the centroid of the target. Non-Maximum Suppression (NMS) is applied to eliminate redundant overlapping boxes. The annotated frames with visualized bounding boxes are then encoded into an MJPEG stream for iOS UI presentation.
 
-
-\subsection{FSM-Based Event Recognition \& Control Package}
+\subsubsection{FSM-Based Event Recognition \& Control Package}
 \label{sec:event-recognition}
 To ensure system reliability, facilitate secondary development, and streamline future maintenance, the robot's core behavioral logic is strictly governed by a robust Finite State Machine (FSM). This package translates visual data into physical action through clear, decoupled state transitions:
 \begin{itemize}
