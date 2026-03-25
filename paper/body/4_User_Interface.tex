@@ -8,15 +8,22 @@ This section describes the user interface design of the CourtSweeper iOS applica
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.75\textwidth]{figures/iOS_app.png}
-  \caption{User interface layout of the CourtSweeper iOS application. The primary HUD renders the low-latency MJPEG video stream overlaid with real-time YOLO bounding boxes. The lower panel provides virtual joysticks for holonomic teleoperation and manual override switches for the system's Finite State Machine (FSM).}
-  \label{fig_roller_mech}
+  \includegraphics[width=0.8\textwidth]{figures/fig_ui.pdf}
+  \caption{The software architecture and data flow for the CourtSweeper iOS application, illustrating the centralized SwiftUI core connected via bidirectional Wi-Fi and UDP sockets to external Jetson computing units, and featuring functional breakdowns of main dashboard, teleoperation, and telemetry modules.}
+  \label{fig_ui}
 \end{figure}
 
 
 \subsection{Main Dashboard \& Video HUD}
 \label{sec:main-interface}
 The primary interface is designed as a landscape-oriented Heads-Up Display (HUD) to maximize the operator's field of view. The core component of this view is the video presentation layer.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.75\textwidth]{figures/iOS_app.png}
+  \caption{User interface layout of the CourtSweeper iOS application. The primary HUD renders the low-latency MJPEG video stream overlaid with real-time YOLO bounding boxes. The lower panel provides virtual joysticks for holonomic teleoperation and manual override switches for the system's Finite State Machine (FSM).}
+  \label{fig_hud}
+\end{figure}
 
 \begin{itemize}
   \item \textbf{Video Streaming Rendering:} Instead of relying on complex and latency-prone H.264 decoders on the client side, the app utilizes a lightweight \texttt{WKWebView} component to render the MJPEG video stream broadcasted by the Jetson unit. 

@@ -8,11 +8,28 @@
 \label{sec:purpose}
 This document describes the preliminary design of the CourtSweeper system. Its primary purpose is to provide a comprehensive architectural overview and detailed engineering specifications, serving as the Baseline 1.0 blueprint for the development team. It details the physical mechanical structures, electronic power systems, computer vision algorithms, and the iOS-based user interface to guide the implementation, integration, and testing phases.
 
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/fig_purpose.pdf}
+  \caption{Comprehensive engineering design overview of the CourtSweeper robotic platform.}
+  \label{fig_purpose}
+\end{figure}
+
 
 \subsection{Scope}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/fig_scope.pdf}
+  \caption{Hierarchical scope tree diagram detailing the overarching architecture of the CourtSweeper system.}
+  \label{fig_scope}
+\end{figure}
+
 This document describes the design of the CourtSweeper, an intelligent, vision-guided robotic vehicle designed to automate the retrieval of scattered tennis balls in sports facilities. The scope of this system encompasses:
+
 \begin{itemize}
   \item \textbf{Hardware Subsystem:} A hybrid mobile platform utilizing the DJI RoboMaster EP~\cite{robomaster_ep} chassis to provide omnidirectional mobility and the primary HD camera feed. It is physically integrated with a custom-built, high-torque dual-roller intake mechanism, which is driven by 775 D-shaft motors and BTS7960 drivers for ball collection, and an NVIDIA Jetson Orin NX~\cite{jetson_orin} acting as the central edge computing unit.
+
   \item \textbf{Software Subsystem:} An onboard AI pipeline utilizing the RoboMaster-SDK-Ultra~\cite{robomaster_sdk_ultra} (a customized, high-performance fork of the official DJI SDK developed specifically for this project) for vehicle telemetry and camera stream extraction. This is combined with the YOLO~\cite{yolo26} object detection model and OpenCV, enabling real-time target recognition, spatial coordinate mapping, and dynamic intake motor control via PWM.
   \item \textbf{Remote Control \& UI:} A native iOS application~\cite{apple_doc} developed in Swift, establishing a localized Wi-Fi connection to stream AI-annotated video feeds (via MJPEG) and transmit low-latency teleoperation commands to the Jetson unit.
 \end{itemize}
