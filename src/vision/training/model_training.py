@@ -1,5 +1,5 @@
 from ultralytics import YOLO
-from cv_config import DATA_YAML, MODEL_NAME, DEVICE
+from vision.cv_config import DATA_YAML, MODEL_NAME, DEVICE
 
 def train_model():
     print("Training model...")
