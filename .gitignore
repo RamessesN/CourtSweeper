@@ -207,4 +207,4 @@ marimo/_lsp/
 __marimo__/
 
 # dataset
-src/cv/dataset/*
+src/vision/model_training/dataset/*
