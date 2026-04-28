@@ -4,7 +4,7 @@ import numpy as np
 from robomaster_ultra import robot, camera
 
 def img_collect():
-    save_dir = "./dataset_v2"
+    save_dir = "./dataset/tennis_v2"
 
     os.makedirs(save_dir, exist_ok = True)
         
