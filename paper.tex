@@ -1,21 +1,23 @@
 \documentclass[12pt,a4paper]{article}
 
-\usepackage{geometry}
-\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+\usepackage[
+  left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm
+]{geometry}
 
-\usepackage{fontspec}
-\setmainfont{Times New Roman}
+% \usepackage{newtxtext} % useful only in pdfLaTeX
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{newtxmath} % must come after amsXXX
+\usepackage{ctex} % Chinese support (XeLaTeX, auto-loads fontspec)
+\setmainfont{Times New Roman} % useful only in XeLaTeX
 
-\usepackage[backend=biber]{biblatex}
-\addbibresource{references.bib}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{hhline}
 
-\usepackage{hyperref}
-\hypersetup{
-	colorlinks=true,
-	linkcolor=blue,
-	urlcolor=blue,
-	citecolor=blue
-}
+\usepackage{graphicx}
+\usepackage[table, dvipsnames]{xcolor}
 
 \usepackage{minted}
 \usemintedstyle{vs}
@@ -30,6 +32,8 @@
   bgcolor=black!5
 }
 
+\usepackage{fancyhdr}
+
 \usepackage{titlesec}
 \titleformat{\paragraph}[block]
 {\normalsize\bfseries}
@@ -43,17 +47,19 @@
 {0.6em}
 
 \usepackage[nottoc]{tocbibind}
-\usepackage{graphicx}
-\usepackage{longtable}
-\usepackage{multirow}
-\usepackage{fancyhdr}
-\usepackage[table, dvipsnames]{xcolor}
-\usepackage{tabularx}
-\usepackage{hhline}
-\usepackage{booktabs}
+
 \usepackage{xstring}
-\usepackage{ctex}     % 核心中文支持，XeLaTeX 下自动调用 xeCJK
-\usepackage{fontspec}% XeLaTeX 字体管理（ctex 通常已自动加载）
+
+\usepackage[backend=biber]{biblatex}
+\addbibresource{references.bib}
+
+\usepackage{hyperref}
+\hypersetup{
+	colorlinks=true,
+	linkcolor=blue,
+	urlcolor=blue,
+	citecolor=blue
+}
 
 \newcommand{\ieeesection}[2][]{%
   \StrLeft{#2}{1}[\FirstLetter]%
@@ -88,7 +94,7 @@
 \renewcommand{\contentsname}{\centerline{\bfseries Table of Contents}\vspace*{-1cm}}
 
 % Header/Footer Configuration
-\setlength{\headheight}{40pt}
+\setlength{\headheight}{54pt}
 \pagestyle{fancy}
 \fancyhf{}
 \fancyfoot[C]{\thepage}
