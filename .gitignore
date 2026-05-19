@@ -1,0 +1,8 @@
+# Build artifacts
+aux/
+
+# macOS
+.DS_Store
+
+# Conflict copies
+*冲突副本*
