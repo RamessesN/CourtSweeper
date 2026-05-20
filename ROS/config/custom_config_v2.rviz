@@ -6,7 +6,9 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Odometry1
         - /Odometry1/Shape1
+        - /Camera1
       Splitter Ratio: 0.5
     Tree Height: 425
   - Class: rviz_common/Selection
@@ -53,8 +55,6 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        base_footprint:
-          Value: true
         base_link:
           Value: true
         laser:
@@ -72,8 +72,6 @@ Visualization Manager:
         map:
           odom:
             base_link:
-              base_footprint:
-                {}
               laser:
                 {}
       Update Interval: 0
