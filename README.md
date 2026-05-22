@@ -19,7 +19,9 @@
 
 ## I. Introduction
 
-<img src="./doc/figures/courtsweeper.png" alt="courtsweeper_alt" title="courtsweeper_img" width=600>
+<div align="center">
+<img src="./doc/figures/courtsweeper.png" alt="courtsweeper_alt" title="courtsweeper_img" width=500>
+</div>
 
 This repository contains the software and hardware integration code for an autonomous tennis ball collection robot. The system utilizes a Jetson Orin NX to process visual and spatial data. It identifies tennis balls using a YOLO26 vision model and navigates the environment using a ROS2-based SLAM implementation. The physical ball collection is executed by a custom dual-motor friction wheel mechanism. A native Swift iOS application serves as the user interface for telemetry visualization and emergency control.
 
@@ -167,7 +169,9 @@ TODO
 ### IV. System Details
 1. **Hardware Architecture**
 
+<div align="center">
 <img src="./doc/figures/hardwares.png" alt="hardwares_alt" title="hardwares_img" width=600>
+</div>
 
 - **Chassis Platform:** A DJI RoboMaster chassis provides mobility, camera input, infrared sensor and wireless communication.
 - **Edge Computing:** A Jetson Orin NX serves as the primary computational platform. It operates headlessly using a display emulator and VNC.
