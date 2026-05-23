@@ -32,7 +32,7 @@ TODO
 
 ---
 
-## III. Project Struture
+## III. Project Structure
 ### 1. Mainbody
 <pre>
 <code>CourtSweeper/
@@ -197,7 +197,7 @@ The core dependencies are listed below:
 | VPI         | 3.2.4                      |
 | Vulkan      | 1.3.204                    |
 | Python      | 3.10.12                    |
-| OpenCV      | 4.11.0 with CUDA: YES      |
+| OpenCV      | 4.11.0 with `CUDA: YES`      |
 | PyTorch     | 2.5.0a0+872d972e41.nv24.8 (torchvision 0.20.0a0+afc54f7) |
 | TensorRT    | 10.3.0                     |
 
