@@ -170,7 +170,7 @@ TODO
 1. **Hardware Architecture**
 
 <div align="center">
-<img src="./doc/figures/hardwares.png" alt="hardwares_alt" title="hardwares_img" width=600>
+<img src="./doc/figures/hardwares.jpg" alt="hardwares_alt" title="hardwares_img" width=600>
 </div>
 
 - **Chassis Platform:** A DJI RoboMaster chassis provides mobility, camera input, infrared sensor and wireless communication.
@@ -180,8 +180,13 @@ TODO
 - **Power Distribution:** Power is physically isolated across three independent circuits to maintain electrical stability - Jetson Orin NX: 12V 6800mAh battery; Intake Mechanism: 11.1V 3S 5200mAh LiPo battery; RoboMaster Chassis: Factory default battery.
 
 2. **Software Environment**
+
+<div align="center">
+<img src="./doc/figures/software.svg" alt="software_alt" title="software_svg" width="500">
+</div>
+
 - **Operating System:** The system runs on Ubuntu 22.04 with JetPack 6.2.1.
-**Process Isolation:** Vision and navigation stacks are isolated to prevent dependency conflicts.
+- **Process Isolation:** Vision and navigation stacks are isolated to prevent dependency conflicts.
 - **Vision Stack:** The YOLO26 model executes within a dedicated Conda environment.
 - **Navigation Stack:** ROS2 SLAM applications operate directly within the native system environment.
 - **Communication Bridge:** A custom ROS2 node handles cross-environment data exchange. It interfaces with a modified SDK (Robomaster-SDK-Ultra) compatible with newer Python versions to manage velocity commands, odometry calculations, TF broadcasting, and image stream publishing.
