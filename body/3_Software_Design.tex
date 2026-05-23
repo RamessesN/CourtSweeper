@@ -8,9 +8,9 @@
 \label{sec:arch_overview}
 The software subsystem of CourtSweeper operates primarily on the NVIDIA Jetson Orin NX edge computing unit, utilizing a multi-threaded pipeline designed for high-throughput and low-latency operation. The architecture integrates heterogenous sensory inputs—comprising the high-definition DJI camera stream and 2D LiDAR range data—to establish full situational awareness.
 
-\begin{figure}[htbp]
+\begin{figure}[!htb]
   \centering
-  \includegraphics[width=0.9\textwidth]{figures/fig_software_overview.pdf}
+  \includegraphics[width=0.9\linewidth]{figures/fig_software_overview.pdf}
   \caption{Detailed comprehensive diagram of the CourtSweeper software subsystem architecture, integrating visual perception and SLAM-based navigation pipelines.}
   \label{fig_software_overview}
 \end{figure}
@@ -27,10 +27,15 @@ Operationally, this unified SDK manages a high-speed connection over the local n
 \subsubsection{SLAM \& LiDAR Localization Package}
 \label{sec:slam}
 To provide the robot with precise spatial awareness, this package interfaces with the LiDAR via USB-serial. It implements a robust SLAM algorithm accelerated by the Jetson's GPU to process scan matching in real-time. This module is responsible for:
-\begin{itemize}
-  \item \textbf{Map Generation:} Constructing a 2D occupancy grid map of the surrounding environment during the initial setup phase.
-  \item \textbf{Real-time Localization:} Providing continuous, high-frequency estimates of the robot's pose $(x, y, \theta)$ within the generated map by fusing LiDAR odometry and chassis wheel odometry data.
-\end{itemize}
+
+% TODO: which is better!
+\paragraph*{Map Generation:} Constructing a 2D occupancy grid map of the surrounding environment during the initial setup phase.
+
+\paragraph*{Real-time Localization:} Providing continuous, high-frequency estimates of the robot's pose $(x, y, \theta)$ within the generated map by fusing LiDAR odometry and chassis wheel odometry data.
+% \begin{itemize}
+%   \item \textbf{} 
+%   \item \textbf{} 
+% \end{itemize}
 
 \subsubsection{Workspace Gridding \& Calibration Package}
 \label{sec:gridding}
@@ -80,7 +85,7 @@ To support the integrated SLAM and Planning pipelines, the central orchestrator 
   \footnotesize
   \centering
   \renewcommand{\arraystretch}{1.3}
-  \begin{tabularx}{\textwidth}{|l|X|}
+  \begin{tabularx}{\linewidth}{|l|X|}
     \hline
     \rowcolor[RGB]{220,220,220} \textbf{Attribute} & \textbf{Description} \\ \hline
     Class Name & \texttt{CourtNavigationManager} \\ \hline

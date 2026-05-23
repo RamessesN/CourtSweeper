@@ -3,6 +3,7 @@
 
 \textcolor{gray}{\rule{\linewidth}{3pt}}
 
+
 \subsection{Computer Vision \& Object Detection Module}
 \label{sec:cv}
 
@@ -14,14 +15,25 @@ This module is the core perception layer of the CourtSweeper system, responsible
 The overall workflow of the computer vision module can be summarized into four stages: dataset collection and annotation, model training, cross-platform model deployment, and real-time object detection. The system receives the real-time video stream from the RoboMaster gimbal camera, performs YOLO inference to output the bounding box coordinates of tennis ball targets, and then computes the horizontal offset of the target relative to the image center (visual error), which serves as the input signal for the chassis and gimbal control loops.
 
 The module consists of the following core files:
-\begin{itemize}
-    \item \texttt{cv\_config.py}: Device-adaptive and path configuration
-    \item \texttt{dataset\_collect.py}: Dataset collection tool
-    \item \texttt{model\_training.py}: YOLO model training script
-    \item \texttt{pt2onnx.py}: PyTorch model export to ONNX format
-    \item \texttt{onnx2engine.sh}: ONNX model conversion to TensorRT engine
-    \item \texttt{video\_node.py}: Real-time object detection main node
-\end{itemize}
+
+% TODO: which one is better
+\begin{tabularx}{0.8\linewidth}{lX}
+  \texttt{cv\_config.py} & Device-adaptive and path configuration \\
+  \texttt{dataset\_collect.py} & Dataset collection tool \\
+  \texttt{model\_training.py} & YOLO model training script \\
+  \texttt{pt2onnx.py} & PyTorch model export to ONNX format \\
+  \texttt{onnx2engine.sh} & ONNX model conversion to TensorRT engine \\
+  \texttt{video\_node.py} & Real-time object detection main node
+\end{tabularx}
+
+% \begin{itemize}
+%     \item \texttt{cv\_config.py}: Device-adaptive and path configuration
+%     \item \texttt{dataset\_collect.py}: Dataset collection tool
+%     \item \texttt{model\_training.py}: YOLO model training script
+%     \item \texttt{pt2onnx.py}: PyTorch model export to ONNX format
+%     \item \texttt{onnx2engine.sh}: ONNX model conversion to TensorRT engine
+%     \item \texttt{video\_node.py}: Real-time object detection main node
+% \end{itemize}
 
 \subsubsection{Dataset Collection}
 \label{sec:cv:dataset}
@@ -47,14 +59,13 @@ def img_collect():
         img = ep_camera.read_cv2_image()
         if img is not None:
             img_resized = cv2.resize(img, (1280, 960))
-            # 绘制十字准星
             cv2.line(display_img, (center_w - 20, center_h),
                      (center_w + 20, center_h), (0, 255, 0), 2)
             cv2.line(display_img, (center_w, center_h - 20),
                      (center_w, center_h + 20), (0, 255, 0), 2)
-            # 按's'键保存图像
             if key == ord('s'):
                 cv2.imwrite(filename, img_resized)
+
 \end{minted}
 
 After collection, annotation tools such as LabelImg are used to label the tennis balls in the images with bounding boxes, generating YOLO-format label files (\texttt{.txt}). A \texttt{data.yaml} dataset configuration file is then written, specifying the training and validation set paths and class names.
@@ -65,17 +76,29 @@ After collection, annotation tools such as LabelImg are used to label the tennis
 The object detection model is trained using the Ultralytics YOLO framework. Starting from the YOLOv6-Nano (\texttt{yolo26n.pt}) pre-trained weights as a foundation, transfer learning is applied to rapidly adapt the model from general-purpose detection capability to the single tennis ball class.
 
 The training hyperparameters are configured as follows:
-\begin{itemize}
-    \item Training epochs: 200
-    \item Input image size (imgsz): $640\times640$
-    \item Batch size: 16 (adjustable based on GPU memory)
-    \item Initial learning rate (lr0): 0.01, final learning rate (lrf): 0.01
-    \item Optimizer: auto (SGD with momentum=0.937)
-    \item Weight decay: 0.0005
-    \item Warmup epochs: 3.0
-    \item Data augmentation: Mosaic stitching, random horizontal flip (fliplr=0.5), HSV color perturbation, random affine transformation (scale=0.5, translate=0.1), RandAugment automatic augmentation, random erasing (erasing=0.4)
-    \item Early stopping patience: 100 epochs
-\end{itemize}
+
+% TODO: here!
+\begin{tabularx}{0.8\linewidth}{lX}
+  Initial learning rate (lr0) & 0.01 \\
+  final learning rate (lrf) & 0.01 \\
+  Optimizer & auto (SGD with momentum=0.937) \\
+  Weight decay & 0.0005 \\
+  Warmup epochs & 3.0 \\
+  Data augmentation & Mosaic stitching, random horizontal flip (fliplr=0.5), HSV color perturbation, random affine transformation (scale=0.5, translate=0.1), RandAugment automatic augmentation, random erasing (erasing=0.4) \\
+  Early stopping patience & 100 epochs
+\end{tabularx}
+
+% \begin{itemize}
+%     \item Training epochs: 200
+%     \item Input image size (imgsz): $640\times640$
+%     \item Batch size: 16 (adjustable based on GPU memory)
+%     \item Initial learning rate (lr0): 0.01, final learning rate (lrf): 0.01
+%     \item Optimizer: auto (SGD with momentum=0.937)
+%     \item Weight decay: 0.0005
+%     \item Warmup epochs: 3.0
+%     \item Data augmentation: Mosaic stitching, random horizontal flip (fliplr=0.5), HSV color perturbation, random affine transformation (scale=0.5, translate=0.1), RandAugment automatic augmentation, random erasing (erasing=0.4)
+%     \item Early stopping patience: 100 epochs
+% \end{itemize}
 
 \begin{minted}{python}
 from ultralytics import YOLO
@@ -114,7 +137,7 @@ The artifacts produced during training include: the best-weight file \texttt{bes
 
 To accommodate the inference performance requirements of different deployment environments, the system implements a model conversion pipeline from PyTorch to ONNX to TensorRT.
 
-\textbf{PyTorch → ONNX Conversion:} Using the built-in export functionality of Ultralytics, the \texttt{.pt} weights can be converted to the open ONNX intermediate representation format with a single line of code:
+\textbf{PyTorch $\rightarrow$ ONNX Conversion:} Using the built-in export functionality of Ultralytics, the \texttt{.pt} weights can be converted to the open ONNX intermediate representation format with a single line of code:
 
 \begin{minted}{python}
 from ultralytics import YOLO
@@ -125,7 +148,7 @@ model.export(format="onnx")
 
 The generated \texttt{.onnx} file can be used for inference on any platform supporting ONNX Runtime, ensuring the model's universality and portability.
 
-\textbf{ONNX → TensorRT Engine:} On edge computing platforms such as the NVIDIA Jetson, to fully leverage GPU inference acceleration, NVIDIA TensorRT's \texttt{trtexec} tool is used to compile the ONNX model into a highly optimized TensorRT engine (\texttt{.engine} file), with FP16 half-precision inference enabled to substantially boost the inference frame rate with negligible loss in detection accuracy:
+\textbf{ONNX $\rightarrow$ TensorRT Engine:} On edge computing platforms such as the NVIDIA Jetson, to fully leverage GPU inference acceleration, NVIDIA TensorRT's \texttt{trtexec} tool is used to compile the ONNX model into a highly optimized TensorRT engine (\texttt{.engine} file), with FP16 half-precision inference enabled to substantially boost the inference frame rate with negligible loss in detection accuracy:
 
 \begin{minted}{bash}
 /usr/src/tensorrt/bin/trtexec           \
