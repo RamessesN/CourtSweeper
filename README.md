@@ -182,7 +182,7 @@ TODO
 2. **Software Environment**
 
 <div align="center">
-<img src="./doc/figures/software.svg" alt="software_alt" title="software_svg" width="500">
+    <img src="./doc/figures/software.png" alt="software_alt" title="software_png" width=600>
 </div>
 
 - **Operating System:** The system runs on Ubuntu 22.04 with JetPack 6.2.1.
