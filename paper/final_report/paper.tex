@@ -1,0 +1,184 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[
+  left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm
+]{geometry}
+
+% \usepackage{newtxtext} % useful only in pdfLaTeX
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{newtxmath} % must come after amsXXX
+\usepackage{ctex} % Chinese support (XeLaTeX, auto-loads fontspec)
+\setmainfont{Times New Roman} % useful only in XeLaTeX
+
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{hhline}
+
+\usepackage{graphicx}
+\usepackage[table, dvipsnames]{xcolor}
+
+\usepackage{minted}
+\usemintedstyle{vs}
+\setminted{
+  fontsize=\footnotesize,
+  linenos,
+  breaklines,
+  breakanywhere=true,
+  frame=single,
+  framesep=2mm,
+  tabsize=2,
+  bgcolor=black!5
+}
+
+\usepackage{fancyhdr}
+
+\usepackage{titlesec}
+\titleformat{\paragraph}[block]
+{\normalsize\bfseries}
+{\theparagraph}
+{1em}
+{}
+
+\titlespacing*{\paragraph}
+{0pt}
+{0.3em}
+{0.6em}
+
+\usepackage[nottoc]{tocbibind}
+
+\usepackage{xstring}
+
+\usepackage[backend=biber]{biblatex}
+\addbibresource{references.bib}
+
+\usepackage{hyperref}
+\hypersetup{
+	colorlinks=true,
+	linkcolor=blue,
+	urlcolor=blue,
+	citecolor=blue
+}
+
+\newcommand{\ieeesection}[2][]{%
+  \StrLeft{#2}{1}[\FirstLetter]%
+  \StrGobbleLeft{#2}{1}[\RestLetters]%
+  \section[#1]{%
+    \MakeUppercase{%
+      {\fontsize{18}{20}\selectfont\bfseries \FirstLetter}%
+      {\fontsize{14}{16}\selectfont\bfseries \RestLetters}%
+    }%
+  }%
+}
+
+% Title Format
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{\thesubsubsection}{1em}{}
+
+% Revision Page Header Config
+\fancypagestyle{nofooter}{
+  \fancyhf{}
+  \fancyhead[C]{%
+    \small
+    \begin{tabular}{|p{9.5cm}|p{5cm}|}
+    \hline
+    Vision-Based Retriever System (Short for VBRS) & Issue: 1.0 \\ \hline
+    Hardware/Software Design Description (HSDD) & Issue Date: 03 / 23 / 2026 \\ \hline
+    \end{tabular}
+    \vspace*{1em}
+  }
+}
+
+\renewcommand{\contentsname}{\centerline{\bfseries Table of Contents}\vspace*{-1cm}}
+
+% Header/Footer Configuration
+\setlength{\headheight}{54pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+
+\fancyhead[C]{%
+  \small
+  \begin{tabular}{|p{9.5cm}|p{5cm}|}
+  \hline
+  Vision-Based Retriever System (Short for VBRS) & Issue: 1.0 \\ \hline
+  Hardware/Software Design Description (HSDD) & Issue Date: 03 / 23 / 2026 \\ \hline
+  \end{tabular}
+  \vspace*{1em}
+}
+
+\begin{document}
+
+% Title Page
+\begin{titlepage}
+\raggedleft
+\rule{\linewidth}{3pt}
+
+\vspace{1.5cm}
+
+{\LARGE\bfseries Hardware/Software Design Description\par}
+
+\vspace{1.5cm}
+
+{\Large\bfseries For\par}
+
+\vspace{1.5cm}
+
+{\Huge\bfseries CourtSweeper: A Vision-Based Tennis Ball Retriever with Dual-Roller Intake Mechanism \par}
+
+\vspace{1.5cm}
+
+{\bfseries Version 1.0 approved} \\ [0.8cm]
+
+\vspace{1.5cm}
+
+{\bfseries Group 13} \\ [0.8cm]
+
+\vspace{1.5cm}
+
+{\bfseries Date 2026-03-23} \\ [3cm]
+\end{titlepage}
+
+% Revision History
+\thispagestyle{nofooter}
+
+\begin{center}
+  \Large\bfseries
+  Revision History
+\end{center}
+
+\begin{tabularx}{0.9\textwidth}{|X|c|X|c|}
+  \hline
+  \rowcolor[RGB]{180,180,180}
+  \textbf{Name} & \textbf{Date} & \textbf{Reason For Changes} & \textbf{Version} \\ \hline
+
+  Yilin Zhang & 2026-03-17 & Initial document creation and LaTeX template configuration. & 0.1 \\ \hline
+  Yingrui Sun & 2026-03-18 & Drafted initial hardware specifications, including dual-roller mechanism and power system. & 0.2 \\ \hline
+  Shijia Luo & 2026-03-18 & Drafted software architecture, including machine vision algorithms and communication protocols. & 0.3 \\ \hline
+  Yuwei Zhao & 2026-03-23 & Comprehensive review and optimization. Finalized system design and approved Baseline 1.0. & 1.0 \\ \hline
+\end{tabularx}
+
+\clearpage
+
+% Table of Contents
+{
+\hypersetup{linkcolor=black}
+\tableofcontents
+}
+\thispagestyle{empty}
+
+\clearpage
+
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+% Main Body
+\input{body/1_Introduction} \clearpage
+\input{body/2_Hardware_Design} \clearpage
+\input{body/3_Software_Design} \clearpage
+\input{body/4_Detailed_Software_Design}\clearpage
+\input{body/5_User_Interface} \clearpage
+
+\end{document}

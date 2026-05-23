@@ -1,0 +1,713 @@
+\ieeesection[DETAILED SOFTWARE DESIGN]{DETAILED SOFTWARE DESIGN}
+\label{sec:detailed_software}
+
+\textcolor{gray}{\rule{\linewidth}{3pt}}
+
+
+\subsection{Computer Vision \& Object Detection Module}
+\label{sec:cv}
+
+This module is the core perception layer of the CourtSweeper system, responsible for real-time video frame capture, tennis ball target detection, and providing pixel-space coordinate offset to the downstream motion control module. The system is built on the YOLO (You Only Look Once) deep learning object detection framework, supports multi-platform deployment (macOS, Linux/Jetson), and is optimized with TensorRT acceleration for embedded edge computing scenarios.
+
+\subsubsection{Module Architecture}
+\label{sec:cv:arch}
+
+The overall workflow of the computer vision module can be summarized into four stages: dataset collection and annotation, model training, cross-platform model deployment, and real-time object detection. The system receives the real-time video stream from the RoboMaster gimbal camera, performs YOLO inference to output the bounding box coordinates of tennis ball targets, and then computes the horizontal offset of the target relative to the image center (visual error), which serves as the input signal for the chassis and gimbal control loops.
+
+The module consists of the following core files:
+
+% TODO: which one is better
+\begin{tabularx}{0.8\linewidth}{lX}
+  \texttt{cv\_config.py} & Device-adaptive and path configuration \\
+  \texttt{dataset\_collect.py} & Dataset collection tool \\
+  \texttt{model\_training.py} & YOLO model training script \\
+  \texttt{pt2onnx.py} & PyTorch model export to ONNX format \\
+  \texttt{onnx2engine.sh} & ONNX model conversion to TensorRT engine \\
+  \texttt{video\_node.py} & Real-time object detection main node
+\end{tabularx}
+
+% \begin{itemize}
+%     \item \texttt{cv\_config.py}: Device-adaptive and path configuration
+%     \item \texttt{dataset\_collect.py}: Dataset collection tool
+%     \item \texttt{model\_training.py}: YOLO model training script
+%     \item \texttt{pt2onnx.py}: PyTorch model export to ONNX format
+%     \item \texttt{onnx2engine.sh}: ONNX model conversion to TensorRT engine
+%     \item \texttt{video\_node.py}: Real-time object detection main node
+% \end{itemize}
+
+\subsubsection{Dataset Collection}
+\label{sec:cv:dataset}
+
+The quality of the dataset directly affects the detection accuracy of the model. We developed the \texttt{dataset\_collect.py} tool to capture tennis ball images in actual court environments using the built-in RoboMaster camera.
+
+The collection program communicates with the robot via a direct Wi-Fi connection (AP mode), starts a 720P HD video stream, and displays the resized frames at $1280\times960$ pixels in real time. A crosshair is drawn at the center of the frame to assist composition, helping the collector position the tennis ball in the central region. Pressing the \texttt{s} key triggers a snapshot save, followed by a brief white flash as visual feedback; pressing \texttt{q} exits the program. Images are saved to the \texttt{./dataset/tennis\_v2/} directory with a timestamp-plus-sequence naming scheme (e.g., \texttt{tennis\_20250519\_143025\_0001.jpg}).
+
+\begin{minted}{python}
+def img_collect():
+    save_dir = "./dataset/tennis_v2"
+    os.makedirs(save_dir, exist_ok=True)
+
+    ep_robot = robot.Robot()
+    ep_robot.initialize(conn_type="ap")
+    ep_robot.set_robot_mode(mode="free")
+    ep_camera = ep_robot.camera
+    ep_camera.start_video_stream(display=False,
+                                  resolution=camera.STREAM_720P)
+
+    count = 0
+    while True:
+        img = ep_camera.read_cv2_image()
+        if img is not None:
+            img_resized = cv2.resize(img, (1280, 960))
+            cv2.line(display_img, (center_w - 20, center_h),
+                     (center_w + 20, center_h), (0, 255, 0), 2)
+            cv2.line(display_img, (center_w, center_h - 20),
+                     (center_w, center_h + 20), (0, 255, 0), 2)
+            if key == ord('s'):
+                cv2.imwrite(filename, img_resized)
+
+\end{minted}
+
+After collection, annotation tools such as LabelImg are used to label the tennis balls in the images with bounding boxes, generating YOLO-format label files (\texttt{.txt}). A \texttt{data.yaml} dataset configuration file is then written, specifying the training and validation set paths and class names.
+
+\subsubsection{Model Training}
+\label{sec:cv:training}
+
+The object detection model is trained using the Ultralytics YOLO framework. Starting from the YOLOv6-Nano (\texttt{yolo26n.pt}) pre-trained weights as a foundation, transfer learning is applied to rapidly adapt the model from general-purpose detection capability to the single tennis ball class.
+
+The training hyperparameters are configured as follows:
+
+% TODO: here!
+\begin{tabularx}{0.8\linewidth}{lX}
+  Initial learning rate (lr0) & 0.01 \\
+  final learning rate (lrf) & 0.01 \\
+  Optimizer & auto (SGD with momentum=0.937) \\
+  Weight decay & 0.0005 \\
+  Warmup epochs & 3.0 \\
+  Data augmentation & Mosaic stitching, random horizontal flip (fliplr=0.5), HSV color perturbation, random affine transformation (scale=0.5, translate=0.1), RandAugment automatic augmentation, random erasing (erasing=0.4) \\
+  Early stopping patience & 100 epochs
+\end{tabularx}
+
+% \begin{itemize}
+%     \item Training epochs: 200
+%     \item Input image size (imgsz): $640\times640$
+%     \item Batch size: 16 (adjustable based on GPU memory)
+%     \item Initial learning rate (lr0): 0.01, final learning rate (lrf): 0.01
+%     \item Optimizer: auto (SGD with momentum=0.937)
+%     \item Weight decay: 0.0005
+%     \item Warmup epochs: 3.0
+%     \item Data augmentation: Mosaic stitching, random horizontal flip (fliplr=0.5), HSV color perturbation, random affine transformation (scale=0.5, translate=0.1), RandAugment automatic augmentation, random erasing (erasing=0.4)
+%     \item Early stopping patience: 100 epochs
+% \end{itemize}
+
+\begin{minted}{python}
+from ultralytics import YOLO
+
+def train_model():
+    model = YOLO("./weight/yolo26n.pt")   # load pre-trained model
+
+    results = model.train(
+        data=DATA_YAML,                   # dataset configuration file
+        epochs=200,                       # training epochs
+        imgsz=640,                        # input image size
+        batch=16,                         # batch size (adjust by GPU memory)
+        name=MODEL_NAME,                  # model name
+        device=DEVICE,                    # runtime device
+        workers=2,                        # data loading threads
+        project="./runs/train_tennis",    # output directory
+        exist_ok=False                    # do not overwrite existing experiment
+    )
+\end{minted}
+
+Device selection is handled by the adaptive logic in \texttt{cv\_config.py}, which probes hardware accelerators in priority order: CUDA (NVIDIA GPU), MPS (Apple Silicon), XPU (Intel GPU), and falls back to CPU if none is available:
+
+\begin{minted}{python}
+DEVICE: str = (
+    "cuda" if torch.cuda.is_available() else
+    "mps" if torch.mps.is_available() else
+    "xpu" if torch.xpu.is_available() else
+    "cpu"
+)
+\end{minted}
+
+The artifacts produced during training include: the best-weight file \texttt{best.pt}, the last-epoch weight \texttt{last.pt}, F1 curve plot, PR curve plot, confusion matrix, training batch visualization samples, and a \texttt{results.csv} file recording per-epoch losses and metrics for subsequent analysis and tuning.
+
+\subsubsection{Cross-Platform Model Deployment}
+\label{sec:cv:deploy}
+
+To accommodate the inference performance requirements of different deployment environments, the system implements a model conversion pipeline from PyTorch to ONNX to TensorRT.
+
+\textbf{PyTorch $\rightarrow$ ONNX Conversion:} Using the built-in export functionality of Ultralytics, the \texttt{.pt} weights can be converted to the open ONNX intermediate representation format with a single line of code:
+
+\begin{minted}{python}
+from ultralytics import YOLO
+
+model = YOLO("./pt/tennis.pt")
+model.export(format="onnx")
+\end{minted}
+
+The generated \texttt{.onnx} file can be used for inference on any platform supporting ONNX Runtime, ensuring the model's universality and portability.
+
+\textbf{ONNX $\rightarrow$ TensorRT Engine:} On edge computing platforms such as the NVIDIA Jetson, to fully leverage GPU inference acceleration, NVIDIA TensorRT's \texttt{trtexec} tool is used to compile the ONNX model into a highly optimized TensorRT engine (\texttt{.engine} file), with FP16 half-precision inference enabled to substantially boost the inference frame rate with negligible loss in detection accuracy:
+
+\begin{minted}{bash}
+/usr/src/tensorrt/bin/trtexec           \
+--onnx=onnx/tennis_v2.onnx              \
+--saveEngine=engine/tennis_v2.engine    \
+--fp16
+\end{minted}
+
+At inference time, the appropriate model format is automatically selected based on the runtime platform:
+
+\begin{minted}{python}
+# Mac Config
+model = YOLO("src/vision/mlmodel/pt/tennis_v2.pt")
+
+# Linux Config (Jetson + TensorRT)
+# model = YOLO("src/vision/mlmodel/engine/tennis_v2.engine")
+# model.names = {0: 'tennis ball'}
+\end{minted}
+
+\subsubsection{Real-Time Object Detection Pipeline}
+\label{sec:cv:pipeline}
+
+\texttt{video\_node.py} is the runtime core of the entire vision module. It is responsible for acquiring video frames from the robot camera, invoking the YOLO model for object detection, computing the target's offset from the frame center, and overlaying rich debugging information on the frame.
+
+\paragraph{Video Stream Acquisition.} The video stream is started at 360P resolution via the RoboMaster SDK to balance image quality and frame rate. Each received frame is resized to $640\times360$ pixels before being fed into the YOLO model for processing.
+
+\begin{minted}{python}
+def video_capture(ep_camera):
+    global latest_frame, annotated_frame, running
+
+    ep_camera.start_video_stream(display=False,
+                                  resolution=camera.STREAM_360P)
+
+    while running:
+        img = ep_camera.read_cv2_image()
+        if img is not None:
+            img = cv2.resize(img, (640, 360))
+            latest_frame = img
+            annotated_frame = yolo_predict(img)
+            cv2.imshow("on Live", annotated_frame)
+\end{minted}
+
+\paragraph{Object Detection and Filtering.} YOLO inference uses a confidence threshold of 0.25 to filter out low-quality detections. When multiple detection results are present in the frame (e.g., multiple tennis balls), the system compares the bottom Y-coordinate (y2 value) of each bounding box to select the ball closest to the camera — a larger y2 value indicates that the target is lower in the frame, i.e., nearer to the camera. This strategy ensures that the robot prioritizes locking onto and tracking the nearest target ball.
+
+Once the target is selected, the horizontal coordinate of its bounding box center, \texttt{target\_x}, is subtracted from the frame centerline \texttt{center\_x} to compute the horizontal visual deviation \texttt{visual\_error\_x}. This offset is the key input quantity for subsequent chassis rotation control:
+
+$$
+\text{visual\_error\_x} = \text{target\_x} - \frac{\text{width}}{2}
+$$
+
+\begin{minted}{python}
+def yolo_predict(frame):
+    results = model(frame, conf=0.25, device=cfg.DEVICE,
+                    verbose=False)
+    annotated = results[0].plot()
+
+    height, width = frame.shape[:2]
+    center_x = width // 2
+
+    if len(results[0].boxes) > 0:
+        boxes = results[0].boxes
+
+        closest_box = None
+        max_y2 = -1
+        for box in boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            if y2 > max_y2:
+                max_y2 = y2
+                closest_box = box  # select the nearest target
+
+        x1, y1, x2, y2 = map(int, closest_box.xyxy[0])
+        target_x = (x1 + x2) // 2
+        target_y = (y1 + y2) // 2
+        visual_error_x = target_x - center_x
+\end{minted}
+
+\paragraph{Target Locking and Scanning Mechanism.} The system maintains three states: \texttt{Locked} (target locked), \texttt{Searching} (normal search in progress), and \texttt{Scanning} (360-degree scan for ball search). When no tennis ball is detected for 15 consecutive frames (\texttt{no\_ball\_counter >= 15}), the system automatically triggers the \texttt{scan\_needed} flag, notifying the chassis control module to perform an in-place rotation scan to re-locate the ball. Upon detecting a target, the counter resets to zero and the state returns to locked. Additionally, if the target approaches the edge of the frame (within 10 pixels of the boundary), the system treats it as about to leave the field of view and actively relinquishes the lock to avoid ineffective tracking.
+
+\begin{minted}{python}
+if not (10 <= target_x <= width - 10) or \
+   not (10 <= target_y <= height - 10):
+    target_x = None
+    target_y = None
+    visual_error_x = 0
+    target_locked = False
+
+# no ball detected
+no_ball_counter += 1
+if no_ball_counter >= 15:  # 15 consecutive frames without target → trigger scan mode
+    scan_needed = True
+\end{minted}
+
+\subsubsection{Visual Overlay \& Debug Information}
+\label{sec:cv:osd}
+
+To facilitate real-time debugging and status monitoring, the system overlays the following information on each frame in OSD (On-Screen Display) format:
+
+\begin{itemize}
+    \item \textbf{Resolution} (RES): Current frame dimensions, displayed in red
+    \item \textbf{Frame Rate} (FPS): Sliding-average frame rate over the last 10 frames, displayed in green
+    \item \textbf{Distance}: Real-time ranging value from the distance sensor module (unit: cm), displayed in blue
+    \item \textbf{Status}: Current tracking state — \texttt{Locked} (green) / \texttt{Searching} or \texttt{Scanning} (orange)
+    \item \textbf{Center Crosshair}: A gray crosshair marking the geometric center of the frame
+    \item \textbf{Target Marker}: When a target is locked, a solid blue circle is drawn at the target center with the horizontal offset value annotated beside it
+    \item \textbf{Bounding Box}: YOLO detection boxes are rendered as yellow rectangles
+\end{itemize}
+
+\begin{minted}{python}
+# Resolution
+cv2.putText(annotated, f"RES: {width}x{height}",
+            (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
+            1, (0, 0, 255), 2, lineType=cv2.LINE_AA)
+# Frame Rate
+cv2.putText(annotated, f"FPS: {int(avg_fps)}",
+            (10, 60), cv2.FONT_HERSHEY_SIMPLEX,
+            1, (0, 255, 0), 2, lineType=cv2.LINE_AA)
+# Distance
+cv2.putText(annotated, f"Distance: {distance_text}",
+            (10, 90), cv2.FONT_HERSHEY_SIMPLEX,
+            1, (255, 0, 0), 2, lineType=cv2.LINE_AA)
+# Status
+state_text = "Locked" if target_locked else \
+             ("Scanning" if scan_needed else "Searching")
+cv2.putText(annotated, f"Status: {state_text}",
+            (10, 120), cv2.FONT_HERSHEY_SIMPLEX,
+            1, color, 2, lineType=cv2.LINE_AA)
+\end{minted}
+
+\subsubsection{Inter-Module Data Exchange}
+\label{sec:cv:interface}
+
+The computer vision module shares data with other system modules through module-level global variables:
+
+\begin{itemize}
+    \item \texttt{visual\_error\_x}: The horizontal pixel offset of the target relative to the frame center, used by the chassis control module (\texttt{chassis\_ctrl.py}) to compute the rotational angular velocity
+    \item \texttt{target\_locked}: The target lock status flag, used by the main control logic to determine the current tracking phase
+    \item \texttt{scan\_needed}: The 360-degree scan ball-search request flag, triggering the chassis to execute a scanning rotation maneuver
+    \item \texttt{latest\_frame / annotated\_frame}: The raw and annotated frames, available for other modules that require image data
+\end{itemize}
+
+Simultaneously, the vision module also reads the \texttt{latest\_distance} variable provided by the distance sensor module, displaying real-time tennis ball distance information on the OSD and thereby achieving fused multi-sensor information presentation.
+
+\subsubsection{Summary}
+\label{sec:cv:summary}
+
+The CourtSweeper computer vision module utilizes the YOLO deep learning framework to achieve a complete closed-loop pipeline encompassing data collection, model training, cross-platform deployment, and real-time inference. Through the nearest-target filtering strategy, target locking and scanning search mechanism, and horizontal visual deviation computation, the module provides reliable perceptual input for the robot's autonomous tracking and ball retrieval behaviors. The model deployment pipeline supports the three-stage PyTorch→ONNX→TensorRT conversion, enabling efficient inference at FP16 half-precision on edge devices such as the NVIDIA Jetson, thereby satisfying real-time performance requirements.
+
+\subsection{Intake Motor Control Module}
+\label{sec:motor}
+
+The intake motor control module is the critical actuation unit of the CourtSweeper system. It is responsible for driving the dual-roller mechanical structure to ingest the ball into the onboard storage bay once the vision system has locked onto a tennis ball target. This module spans both low-level hardware driving and high-level decision logic, forming a complete control chain from signal generation to intelligent triggering.
+
+\subsubsection{Hardware Driver Architecture}
+\label{sec:motor_hw}
+
+The intake mechanism is driven by two 775 DC motors (D-shaft configuration, rated at 12\,V and 4600\,RPM), each coupled to a 60\,mm high-friction solid rubber roller via a 30\,mm extended brass coupling. Motor driving is handled by two BTS7960 high-current full-bridge driver modules (capable of handling up to 43\,A peak current), independently controlling the direction and speed of the left and right rollers.
+
+The BTS7960 driver modules interface with the lower-level controller via a three-wire interface (enable pin EN, forward PWM pin RPWM, and reverse PWM pin LPWM). The system utilizes a dedicated 3S (11.1\,V) 5200\,mAh Lithium Polymer (LiPo) battery (discharge rate 40C) to power the driver modules, ensuring sufficient burst current for the motors during ball compression while preventing voltage sag interference to the main control logic circuits. Low-level PWM signal generation is handled by an Arduino microcontroller, which receives commands from the Jetson Orin NX via USB serial.
+\subsubsection{Low-Level Firmware Design}
+\label{sec:motor_firmware}
+
+The low-level Arduino firmware (\texttt{roller\_setting.ino}) is responsible for converting serial commands into PWM signals, enabling real-time control of the dual BTS7960 drivers. The firmware defines the control interfaces for the left and right motors through a pin-mapping scheme, as detailed in Table~\ref{tab:motor_pinmap}.
+
+\begin{table}[htbp]
+  \footnotesize
+  \centering
+  \caption{775 Motor Driver Pin Mapping Table}
+  \label{tab:motor_pinmap}
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{@{}cccc@{}}
+    \toprule
+    \textbf{Motor} & \textbf{Enable (EN)} & \textbf{Forward PWM (RPWM)} & \textbf{Reverse PWM (LPWM)} \\
+    \midrule
+    Left Motor  & Pin 4  & Pin 5 & Pin 6 \\
+    Right Motor  & Pin 7  & Pin 9 & Pin 10 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The firmware main loop operates in blocking serial-read mode: when data is available in the serial buffer, it calls \texttt{Serial.parseInt()} to continuously parse the left and right motor speed values (formatted as \texttt{"L\_speed,R\_speed\textbackslash n"}), then invokes the \texttt{driveMotor()} function to convert the values into corresponding PWM signals. This function clamps the speed to the range $[-255, 255]$ and determines the rotation direction based on the sign: positive values activate the RPWM channel, negative values activate the LPWM channel, and a zero value pulls the enable pin low to cut off the output.
+
+\begin{minted}{c}
+void driveMotor(int enPin, int fwdPin, int revPin, int speed) {
+  speed = constrain(speed, -255, 255);
+
+  if (speed == 0) {
+    digitalWrite(enPin, LOW);
+    analogWrite(fwdPin, 0);
+    analogWrite(revPin, 0);
+  } else if (speed > 0) {
+    digitalWrite(enPin, HIGH);
+    analogWrite(fwdPin, speed);
+    analogWrite(revPin, 0);
+  } else {
+    digitalWrite(enPin, HIGH);
+    analogWrite(fwdPin, 0);
+    analogWrite(revPin, abs(speed));
+  }
+}
+\end{minted}
+
+To ensure system safety, the firmware incorporates a communication timeout protection mechanism. Upon each successful command parsing, a timestamp is recorded. If no new command is received within 500\,ms while the motors are in motion, \texttt{stopMotor()} is automatically invoked to zero all motor outputs, preventing the motors from running idle during a communication loss.
+
+\begin{minted}{c}
+void loop() {
+  if (Serial.available() > 0) {
+    int speedL = Serial.parseInt();
+    int speedR = Serial.parseInt();
+
+    if (Serial.read() == '\n') {
+      driveMotor(L_EN, L_RPWM, L_LPWM, -speedL);
+      driveMotor(R_EN, R_RPWM, R_LPWM, speedR);
+
+      lastRecvTime = millis();
+
+      if (speedL != 0 || speedR != 0) {
+        isMoving = true;
+      }
+    }
+  }
+
+  if (isMoving && (millis() - lastRecvTime > 500)) {
+    stopMotor();
+    isMoving = false;
+  }
+}
+\end{minted}
+
+\subsubsection{High-Level Control Interface}
+\label{sec:motor_python}
+
+On the Jetson Orin NX side, the Python module \texttt{roller\_drive.py} encapsulates serial communication with the Arduino. Its core is the \texttt{RollerMotor} class: the constructor establishes a connection via the PySerial library at 115200\,baud and waits 2\,s for initialization, while the \texttt{set\_speed()} method formats the left and right wheel speeds as a CSV string and writes it to the serial port.
+
+\begin{minted}{python}
+class RollerMotor:
+    def __init__(self, port='', baudrate=115200):
+        logger.info(f"Connecting to motor on {port} ...")
+        try:
+            self.ser = serial.Serial(port, baudrate, timeout=1)
+            time.sleep(2)
+            logger.info("Connection successful!")
+        except Exception as e:
+            logger.error(f"Failed to connect to serial port. Error details: {e}")
+            exit(1)
+
+    def set_speed(self, left_speed, right_speed):
+        command = f"{int(left_speed)},{int(right_speed)}\n"
+        self.ser.write(command.encode('utf-8'))
+        logger.info(f"Roller Speed: L = {left_speed}, R = {right_speed}")
+
+    def close(self):
+        self.set_speed(0, 0)
+        time.sleep(0.1)
+        self.ser.close()
+        logger.info("Connection closed.")
+\end{minted}
+
+This design treats the Python side as a pure command-dispatching layer, offloading all PWM timing generation and direction logic to the Arduino firmware, allowing the upper layer to focus on decision scheduling without concern for time-sensitive low-level signal generation. The \texttt{close()} method ensures safe shutdown by issuing a zero-speed command before closing the serial port.
+
+\subsubsection{FSM Integration \& Intake Trigger Logic}
+\label{sec:motor_fsm}
+
+The motor control module is integrated into the chassis control main loop (\texttt{chassis\_ctrl.py}) and is triggered by the Finite State Machine (FSM) based on visual perception results. The triggering and execution of the intake logic can be decomposed into the following three phases:
+
+\paragraph{Phase 1: Target Distance Pre-Assessment}
+
+When the vision system locks onto a tennis ball target (\texttt{target\_locked = True}), the system enters the chasing sequence (\texttt{is\_chasing\_sequence}). The PD controller drives the chassis to continuously align with and approach the target, while simultaneously reading the front-facing distance sensor value in real time. When the target distance falls within 200\,mm, the system determines that the ball has entered the reachable range of the rollers and immediately transitions to the pre-spin phase.
+
+\paragraph{Phase 2: Motor Pre-Spin \& Slow Advance}
+
+Upon entering the pre-spin phase, the motors begin rotating at a medium speed (both set to 90, approximately 35\% duty cycle), while the chassis continues a slow forward advance at speed 30. This design ensures that the rollers already possess rotational kinetic energy at the moment of contact with the ball, preventing jamming or bouncing caused by acceleration from a standstill.
+
+\begin{minted}{python}
+if dist <= 200:
+    logger.info(f"目标进入预备区 ({dist/10:.1f}cm)！预启动电机并缓慢推进...")
+
+    if intake_motor:
+        intake_motor.set_speed(90, 90)
+
+    drive_chassis(ep_chassis, forward_speed=30, turn_speed=0)
+\end{minted}
+
+\paragraph{Phase 3: Ingestion Confirmation \& Timeout Protection}
+
+After the motors start, the system enters an ingestion confirmation window of at most 3\,s. The front-facing distance sensor value is continuously monitored at a 20\,ms sampling period: if the ball is successfully ingested, the distance sensor reading will jump beyond the measurement range ($>250\,$mm). The system performs 10 consecutive disappearance confirmations (totaling 200\,ms) to prevent false positives. Once the ball is confirmed ingested, it immediately stops the chassis and motors and resets the chasing state, returning the FSM to the searching state to resume the coverage path.
+
+If the distance sensor reading does not exhibit any jump within the 3\,s window, the system determines that a jam or missed-ball anomaly has occurred and likewise stops execution while outputting a warning log, preventing motor overheating from prolonged stalling.
+
+\begin{minted}{python}
+swallow_start_time = time.time()
+missing_count = 0
+
+while time.time() - swallow_start_time < 3.0:
+    current_dist = ds.latest_distance if ds.latest_distance is not None else 8848
+
+    if current_dist > 250:
+        missing_count += 1
+    else:
+        missing_count = 0
+
+    if missing_count >= 10:
+        is_swallowed = True
+        break
+
+    time.sleep(0.02)
+
+if is_swallowed:
+    logger.info("球已成功吞入网箱！")
+else:
+    logger.info("推进超时，发生卡球或漏球。")
+
+chassis_stop(ep_chassis)
+
+if intake_motor:
+    intake_motor.set_speed(0, 0)
+\end{minted}
+
+\paragraph{Blind-Zone Relay Mechanism}
+
+Additionally, the system implements a blind-zone relay logic: when the ball distance has already been reduced to within 300\,mm but the visual target is briefly lost (with the distance sensor still reading within the valid 450\,mm range), the chassis maintains straight forward advance without immediately aborting the chasing sequence. This mechanism effectively compensates for the visual blind zone caused by the camera's limited field of view at close range, improving the success rate of near-field ingestion.
+
+
+% ============================================================
+\subsection{Proximity-Based Chassis Navigation Module}
+\label{sec:chassis}
+This module combines real-time proximity sensing with a closed-loop PID chassis controller, responsible for executing the final stage of ball retrieval: alignment, approach, and physical ingestion. It connects the visual perception pipeline (Section 3.1.6) with the intake actuator (Section 3.X) through a tightly coupled state machine, simultaneously fusing two independent data streams — the image-plane centroid offset from the YOLO detector, and millimeter-resolution distance readings from the RoboMaster EP's onboard infrared sensor.
+
+% ------------------------------------------------------------
+\subsubsection{Distance Sensing Submodule}
+\label{sec:distance_sub}
+
+\paragraph{Hardware Interface via RoboMaster-SDK-Ultra.}
+Distance measurement relies on the RoboMaster EP's built-in infrared proximity sensor, accessed through
+\textbf{RoboMaster-SDK-Ultra}. This SDK is a community-maintained high-performance fork of the official DJI Python SDK,
+extending compatibility to Python~3.7 through 3.13 and bundling
+\texttt{libmedia\_codec\_ultra} for zero-copy H.264 decoding.
+Installation on the Jetson Orin NX proceeds as follows:
+
+\begin{minted}{bash}
+# Automated installation (recommended)
+git clone https://github.com/RamessesN/Robomaster-SDK-Ultra
+cd Robomaster-SDK-Ultra
+sudo chmod 755 ./installer.sh && ./installer.sh
+
+# Or manual installation on Ubuntu/Debian
+sudo apt update && sudo apt install ffmpeg libopus-dev
+pip install -e .
+cd robomaster_lib/libmedia_codec_ultra && pip install -e .
+cd ../../pybind11 && pip install -e .
+\end{minted}
+
+After installation, the sensor API remains consistent with the official DJI documentation, but the import must come from the patched namespace:
+
+\begin{minted}{python}
+from robomaster_ultra import robot   # replaces: from robomaster import robot
+\end{minted}
+
+\paragraph{Subscription Design.}
+Distance data is obtained through the SDK's asynchronous subscription callback mechanism. A dedicated background thread invokes
+\texttt{sub\_distance(freq=10, callback=...)} to register a 10\,Hz polling loop;
+upon each callback trigger, the raw sensor reading (unit: millimetres) is written to a module-level shared variable:
+
+\begin{minted}{python}
+# src/distance/distance_sub.py
+
+latest_distance: float | None = None
+
+def get_distance(ep_sensor):
+    """Register the 10 Hz distance subscription."""
+    ep_sensor.sub_distance(freq=10, callback=sub_data_handler_distance)
+
+def sub_data_handler_distance(sub_info):
+    """Callback: atomically update the shared distance register."""
+    global latest_distance
+    latest_distance = sub_info[0]   # unit: millimetres
+\end{minted}
+
+The sentinel value \texttt{None} is used to distinguish ``sensor not yet initialized'' from a legitimate zero reading.
+In all chassis controller logic, a \texttt{None} reading is substituted with the symbolic constant \texttt{8848}
+(the height of Mount Everest in metres, employed here as an equivalent infinitely-far distance value),
+ensuring the controller defaults to a pure vision-guided mode in the absence of sensor data.
+
+% ------------------------------------------------------------
+\subsubsection{PID Controller Configuration}
+
+Two independent PID controllers respectively govern the two degrees of freedom required during the approach process:
+
+\begin{minted}{python}
+from simple_pid import PID
+
+# Lateral alignment: drives image-plane centroid error to zero
+pid_turn = PID(0.15, 0.03, 0.03, setpoint=0)
+pid_turn.output_limits = (-50, 50)      # RPM-equivalent units
+
+# Longitudinal approach: drives sensor distance to 10 mm (contact)
+pid_forward = PID(0.5, 0.1, 0.05, setpoint=10)
+pid_forward.output_limits = (-40, 40)
+\end{minted}
+
+\begin{itemize}
+  \item \textbf{\texttt{pid\_turn}} receives the pixel-space lateral offset
+        \texttt{visual\_error\_x} produced by the YOLO centroid extractor (a positive value indicates the target is to the right of the frame center). Its output is negated before application,
+        such that a target on the right produces a clockwise chassis rotation.
+
+  \item \textbf{\texttt{pid\_forward}} receives the infrared distance reading (millimetres) and drives the robot toward
+        a target distance of 10\,mm — i.e., physical contact with the ball. When the distance is below 800\,mm, this controller
+        overrides the open-loop cruise speed (30 RPM); above 800\,mm, the chassis advances at a fixed cruise speed
+        to reduce approach time.
+\end{itemize}
+
+% ------------------------------------------------------------
+\subsubsection{Chasing Sequence State Tracking}
+
+The Boolean flag \texttt{is\_chasing\_sequence} decouples the visual locking phase from the physical approach phase.
+Once the YOLO pipeline sets \texttt{target\_locked} to \texttt{True}, this flag is latched high,
+and the last valid distance reading is saved to \texttt{last\_valid\_dist}.
+The flag is cleared only when the vision module issues \texttt{scan\_needed = True} —
+indicating complete target loss following a successful ingestion or timeout.
+
+This design prevents the distance sensor from falsely triggering the intake motors due to
+irrelevant obstacles briefly entering the sensor field of view before a visual lock has been established.
+
+\begin{minted}{python}
+if target_valid:
+    is_chasing_sequence = True
+    last_valid_dist = dist
+elif need_scan:
+    is_chasing_sequence = False
+    last_valid_dist = 8848
+\end{minted}
+
+% ------------------------------------------------------------
+\subsubsection{Multi-Stage Approach \& Ingestion Logic}
+
+When \texttt{is\_chasing\_sequence} is active, the controller executes three priority-ordered behaviors
+based on the current sensor reading.
+
+\paragraph{Phase 1 --- Cruise Tracking (\texttt{dist} > 800\,mm).}
+Both PID loops operate simultaneously. The turn controller corrects lateral deviation; when the centroid error exceeds 40 pixels,
+the forward speed is limited to 5 RPM to ensure rotational alignment stabilizes before resuming advance:
+
+\begin{minted}{python}
+turn_speed = -pid_turn(error_x)
+if abs(error_x) > 40:
+    forward_speed = 5           # prioritise alignment over advance
+else:
+    if dist < 800:
+        forward_speed = -pid_forward(dist)   # PID-controlled approach
+    else:
+        forward_speed = 30      # open-loop cruise
+drive_chassis(ep_chassis, forward_speed, turn_speed)
+\end{minted}
+
+\paragraph{Phase 2 --- Blind-Zone Relay (target lost and \texttt{dist} < 450\,mm).}
+The camera's minimum focusing distance together with the physical offset between the camera and the intake rollers
+collectively form a ``blind zone'' --- the ball disappears from the video frame before entering the rollers.
+The relay logic bridges this blind zone: if the target was last confirmed within 300\,mm
+(\texttt{last\_valid\_dist < 300}) and the distance sensor still reads below
+450\,mm, the chassis maintains straight forward advance at 30 RPM without visual feedback:
+
+\begin{minted}{python}
+elif not target_valid and dist < 450 and last_valid_dist < 300:
+    logger.info(
+        f"Blind-zone relay "
+        f"(current: {dist/10:.1f} cm, "
+        f"last valid: {last_valid_dist/10:.1f} cm) "
+        "-- maintaining straight advance..."
+    )
+    drive_chassis(ep_chassis, forward_speed=30, turn_speed=0)
+\end{minted}
+
+\paragraph{Phase 3 --- Ingestion Trigger (\texttt{dist} $\leq$ 200\,mm).}
+When the sensor confirms the ball has entered the 200\,mm range, the intake motors pre-spin at full speed
+and the chassis advances at a fixed 30 RPM. A sliding-window detector then continuously monitors the ball disappearance signal:
+if the distance reading exceeds 250\,mm for 10 consecutive 20\,ms cycles (\texttt{missing\_count $\geq$ 10}),
+the ball is determined to have been successfully ingested. A 3-second hard timeout guards against jamming or missing:
+
+\begin{minted}{python}
+if dist <= 200:
+    logger.info(
+        f"Target entered pre-ingestion zone "
+        f"({dist/10:.1f} cm) -- pre-spinning motors..."
+    )
+    if intake_motor:
+        intake_motor.set_speed(90, 90)
+    drive_chassis(ep_chassis, forward_speed=30, turn_speed=0)
+
+    swallow_start_time = time.time()
+    missing_count = 0
+    is_swallowed = False
+
+    while time.time() - swallow_start_time < 3.0:
+        current_dist = ds.latest_distance \
+            if ds.latest_distance is not None else 8848
+        if current_dist > 250:
+            missing_count += 1
+        else:
+            missing_count = 0
+        if missing_count >= 10:
+            is_swallowed = True
+            break
+        time.sleep(0.02)
+
+    if is_swallowed:
+        logger.info("Ball successfully ingested into storage bay.")
+    else:
+        logger.info("Warning: advance timeout -- possible jam or miss.")
+
+    chassis_stop(ep_chassis)
+    if intake_motor:
+        intake_motor.set_speed(0, 0)
+    is_chasing_sequence = False
+    last_valid_dist = 8848
+    time.sleep(0.5)
+    continue
+\end{minted}
+
+% ------------------------------------------------------------
+\subsubsection{Chassis Drive Primitives}
+
+The Mecanum wheel drive equation converts the two scalar commands \texttt{forward\_speed} and \texttt{turn\_speed}
+into per-wheel RPM targets.
+Since the DJI SDK's \texttt{drive\_wheels(w1, w2, w3, w4)} interface uses the
+right-front / left-front / left-rear / right-rear wheel ordering convention, the differential mixing is computed as follows:
+
+\begin{minted}{python}
+def drive_chassis(ep_chassis, forward_speed, turn_speed):
+    left_speed  = forward_speed + turn_speed
+    right_speed = forward_speed - turn_speed
+    ep_chassis.drive_wheels(
+        w1=right_speed,   # right-front
+        w2=left_speed,    # left-front
+        w3=left_speed,    # left-rear
+        w4=right_speed    # right-rear
+    )
+
+def chassis_stop(ep_chassis):
+    ep_chassis.drive_wheels(w1=0, w2=0, w3=0, w4=0)
+    time.sleep(0.02)     # brief settle pause before next command
+\end{minted}
+
+During pure straight-line motion, the two sides receive equal speeds; when \texttt{turn\_speed} is non-zero, one side's speed increases while the other decreases,
+producing an in-place rotation superimposed on the translational velocity. The 20\,ms
+settling delay in \texttt{chassis\_stop} prevents new burst commands from being issued before the previous wheel-speed packet is confirmed by the chassis firmware.
+
+% ------------------------------------------------------------
+\subsubsection{Idle \& Search Behavior}
+
+When no tracking task is in progress, the controller falls back to two passive behaviors driven by the vision module:
+
+\begin{minted}{python}
+else:
+    if need_scan:
+        # Rotate in place to sweep the camera FOV
+        drive_chassis(ep_chassis, forward_speed=0, turn_speed=30)
+    else:
+        chassis_stop(ep_chassis)
+\end{minted}
+
+The \texttt{need\_scan} flag is triggered by the finite state machine's SEARCHING state, indicating that coverage path following
+has been temporarily suspended, pending local re-detection. The in-place rotation at a fixed 30 RPM sweeps the 120\textdegree{} camera field of view across
+the surrounding area; once a new target is detected, the chasing sequence automatically re-engages.
