@@ -1,0 +1,692 @@
+\ieeesection[详细软件设计]{详细软件设计}
+\label{sec:detailed_software}
+
+\textcolor{gray}{\rule{\linewidth}{3pt}}
+
+\subsection{计算机视觉与目标检测模块}
+\label{sec:cv}
+
+本模块是CourtSweeper系统的核心感知层，负责实时采集视频帧、检测网球目标的位置，并为下游运动控制模块提供目标的像素坐标偏差。系统基于YOLO（You Only Look Once）深度学习目标检测框架，支持在多平台（macOS、Linux/Jetson）上部署，并针对嵌入式边缘计算场景进行了TensorRT加速优化。
+
+\subsubsection{模块整体架构}
+\label{sec:cv:arch}
+
+计算机视觉模块的整体工作流程可概括为四个阶段：数据集采集与标注、模型训练、模型跨平台部署、以及实时目标检测。系统接收RoboMaster机器人云台相机的实时视频流，经YOLO模型推理后输出网球目标的边界框坐标，进而计算目标相对于画面中心的水平偏移量（visual error），作为底盘和云台控制回路的输入信号。
+
+模块由以下核心文件组成：
+\begin{itemize}
+    \item \texttt{cv\_config.py}：设备自适应与路径配置
+    \item \texttt{dataset\_collect.py}：数据集采集工具
+    \item \texttt{model\_training.py}：YOLO模型训练脚本
+    \item \texttt{pt2onnx.py}：PyTorch模型导出为ONNX格式
+    \item \texttt{onnx2engine.sh}：ONNX模型转换为TensorRT引擎
+    \item \texttt{video\_node.py}：实时目标检测主节点
+\end{itemize}
+
+\subsubsection{数据集采集}
+\label{sec:cv:dataset}
+
+数据集的质量直接影响模型的检测精度。我们开发了\texttt{dataset\_collect.py}工具，通过RoboMaster机器人自带的摄像头在实际场地环境中采集网球图像。
+
+采集程序通过Wi-Fi直连（AP模式）与机器人建立通信，启动720P高清视频流，并将原始画面缩放至$1280\times960$像素后实时显示。画面中央绘制十字准星辅助构图，帮助采集者将网球置于画面中心区域。按下\texttt{s}键触发快照保存，保存后画面闪烁白色闪光作视觉反馈；按下\texttt{q}键退出程序。图像以时间戳加序号的命名方式（如\texttt{tennis\_20250519\_143025\_0001.jpg}）存入\texttt{./dataset/tennis\_v2/}目录。
+
+\begin{minted}{python}
+def img_collect():
+    save_dir = "./dataset/tennis_v2"
+    os.makedirs(save_dir, exist_ok=True)
+
+    ep_robot = robot.Robot()
+    ep_robot.initialize(conn_type="ap")
+    ep_robot.set_robot_mode(mode="free")
+    ep_camera = ep_robot.camera
+    ep_camera.start_video_stream(display=False,
+                                  resolution=camera.STREAM_720P)
+
+    count = 0
+    while True:
+        img = ep_camera.read_cv2_image()
+        if img is not None:
+            img_resized = cv2.resize(img, (1280, 960))
+            # 绘制十字准星
+            cv2.line(display_img, (center_w - 20, center_h),
+                     (center_w + 20, center_h), (0, 255, 0), 2)
+            cv2.line(display_img, (center_w, center_h - 20),
+                     (center_w, center_h + 20), (0, 255, 0), 2)
+            # 按's'键保存图像
+            if key == ord('s'):
+                cv2.imwrite(filename, img_resized)
+\end{minted}
+
+采集完成后，使用LabelImg等标注工具对图像中的网球进行边界框标注，生成YOLO格式的标签文件（\texttt{.txt}），并编写\texttt{data.yaml}数据集配置文件，指定训练集和验证集路径及类别名称。
+
+\subsubsection{模型训练}
+\label{sec:cv:training}
+
+目标检测模型采用Ultralytics YOLO框架进行训练。以YOLOv6-Nano（\texttt{yolo26n.pt}）预训练权重为起点，在其基础上进行迁移学习，使模型在通用检测能力的基础上快速适配网球这一单一类别。
+
+训练超参数配置如下：
+\begin{itemize}
+    \item 训练轮次（epochs）：200
+    \item 输入图像尺寸（imgsz）：$640\times640$
+    \item 批次大小（batch）：16（可根据GPU显存调整）
+    \item 初始学习率（lr0）：0.01，最终学习率（lrf）：0.01
+    \item 优化器：auto（SGD with momentum=0.937）
+    \item 权重衰减：0.0005
+    \item 热身轮次（warmup\_epochs）：3.0
+    \item 数据增强：Mosaic拼接、随机水平翻转（fliplr=0.5）、HSV色彩扰动、随机仿射变换（scale=0.5, translate=0.1）、RandAugment自动增强、随机擦除（erasing=0.4）
+    \item 早停耐心值（patience）：100轮
+\end{itemize}
+
+\begin{minted}{python}
+from ultralytics import YOLO
+
+def train_model():
+    model = YOLO("./weight/yolo26n.pt")   # 加载预训练模型
+
+    results = model.train(
+        data=DATA_YAML,                   # 数据集配置文件
+        epochs=200,                       # 训练轮次
+        imgsz=640,                        # 输入图像尺寸
+        batch=16,                         # 批次大小（依显存调整）
+        name=MODEL_NAME,                  # 模型名称
+        device=DEVICE,                    # 运行设备
+        workers=2,                        # 数据加载线程数
+        project="./runs/train_tennis",    # 输出目录
+        exist_ok=False                    # 不覆盖同名实验
+    )
+\end{minted}
+
+设备选择由\texttt{cv\_config.py}中的自适应逻辑完成，按优先级依次检测CUDA（NVIDIA GPU）、MPS（Apple Silicon）、XPU（Intel GPU），若无可用加速器则回退至CPU：
+
+\begin{minted}{python}
+DEVICE: str = (
+    "cuda" if torch.cuda.is_available() else
+    "mps" if torch.mps.is_available() else
+    "xpu" if torch.xpu.is_available() else
+    "cpu"
+)
+\end{minted}
+
+训练过程生成的产物包括：最佳权重文件\texttt{best.pt}、最后一轮权重\texttt{last.pt}、F1曲线图、PR曲线图、混淆矩阵、训练批次可视化样本、以及包含各轮损失和指标记录的\texttt{results.csv}，便于后续分析和调优。
+
+\subsubsection{模型跨平台部署}
+\label{sec:cv:deploy}
+
+为兼顾不同部署环境的推理性能，系统实现了从PyTorch到ONNX再到TensorRT的模型转换管线。
+
+\textbf{PyTorch → ONNX转换}：通过Ultralytics内置的导出功能，一行代码即可将\texttt{.pt}权重转换为开放的ONNX中间表示格式：
+
+\begin{minted}{python}
+from ultralytics import YOLO
+
+model = YOLO("./pt/tennis.pt")
+model.export(format="onnx")
+\end{minted}
+
+生成的\texttt{.onnx}文件可用于在任意支持ONNX Runtime的平台上进行推理，保证了模型的通用性和可移植性。
+
+\textbf{ONNX → TensorRT引擎}：在NVIDIA Jetson等边缘计算平台上，为充分发挥GPU的推理加速能力，使用NVIDIA TensorRT的\texttt{trtexec}工具将ONNX模型编译为高度优化的TensorRT引擎（\texttt{.engine}文件），并启用FP16半精度推理以在几乎不损失检测精度的前提下大幅提升推理帧率：
+
+\begin{minted}{bash}
+/usr/src/tensorrt/bin/trtexec           \
+--onnx=onnx/tennis_v2.onnx              \
+--saveEngine=engine/tennis_v2.engine    \
+--fp16
+\end{minted}
+
+推理时根据运行平台自动选择合适的模型格式：
+
+\begin{minted}{python}
+# Mac Config
+model = YOLO("src/vision/mlmodel/pt/tennis_v2.pt")
+
+# Linux Config (Jetson + TensorRT)
+# model = YOLO("src/vision/mlmodel/engine/tennis_v2.engine")
+# model.names = {0: 'tennis ball'}
+\end{minted}
+
+\subsubsection{实时目标检测管线}
+\label{sec:cv:pipeline}
+
+\texttt{video\_node.py}是整个视觉模块的运行时核心。它负责从机器人相机获取视频帧、调用YOLO模型进行目标检测、计算目标与画面中心的偏差、并在画面上叠加丰富的调试信息。
+
+\paragraph{视频流采集。}通过RoboMaster SDK启动360P分辨率视频流，以平衡画质与帧率。收到的每一帧缩放至$640\times360$像素后送入YOLO模型进行处理。
+
+\begin{minted}{python}
+def video_capture(ep_camera):
+    global latest_frame, annotated_frame, running
+
+    ep_camera.start_video_stream(display=False,
+                                  resolution=camera.STREAM_360P)
+
+    while running:
+        img = ep_camera.read_cv2_image()
+        if img is not None:
+            img = cv2.resize(img, (640, 360))
+            latest_frame = img
+            annotated_frame = yolo_predict(img)
+            cv2.imshow("on Live", annotated_frame)
+\end{minted}
+
+\paragraph{目标检测与筛选。}YOLO推理以0.25的置信度阈值过滤低质量检测框。当画面中存在多个检测结果时（例如多个网球），系统通过比较各边界框底部纵坐标（y2值）筛选出距离相机最近的网球——y2值越大表示目标在画面中越靠下，即距离越近。该策略确保机器人优先锁定和追踪最近的目标球。
+
+选定目标后，计算其边界框中心的水平坐标\texttt{target\_x}与画面中心线\texttt{center\_x}之间的差值作为水平视觉偏差\texttt{visual\_error\_x}。此偏差是后续底盘旋转控制的关键输入量：
+
+$$
+\text{visual\_error\_x} = \text{target\_x} - \frac{\text{width}}{2}
+$$
+
+\begin{minted}{python}
+def yolo_predict(frame):
+    results = model(frame, conf=0.25, device=cfg.DEVICE,
+                    verbose=False)
+    annotated = results[0].plot()
+
+    height, width = frame.shape[:2]
+    center_x = width // 2
+
+    if len(results[0].boxes) > 0:
+        boxes = results[0].boxes
+
+        closest_box = None
+        max_y2 = -1
+        for box in boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+            if y2 > max_y2:
+                max_y2 = y2
+                closest_box = box  # 选出最近的目标
+
+        x1, y1, x2, y2 = map(int, closest_box.xyxy[0])
+        target_x = (x1 + x2) // 2
+        target_y = (y1 + y2) // 2
+        visual_error_x = target_x - center_x
+\end{minted}
+
+\paragraph{目标锁定与扫描机制。}系统维护三种状态：\texttt{Locked}（已锁定目标）、\texttt{Searching}（正常搜索中）和\texttt{Scanning}（360度扫描搜球）。当连续15帧未检测到网球时（\texttt{no\_ball\_counter >= 15}），系统自动触发\texttt{scan\_needed}标志，通知底盘控制模块执行原地旋转扫描以重新搜索球的位置。检测到目标后计数器归零，状态恢复为锁定。此外，若目标靠近画面边缘（距边界不足10像素），系统视为目标即将离开视野而主动放弃锁定，避免无效追踪。
+
+\begin{minted}{python}
+if not (10 <= target_x <= width - 10) or \
+   not (10 <= target_y <= height - 10):
+    target_x = None
+    target_y = None
+    visual_error_x = 0
+    target_locked = False
+
+# no ball detected
+no_ball_counter += 1
+if no_ball_counter >= 15:  # 连续15帧无目标 → 触发找球模式
+    scan_needed = True
+\end{minted}
+
+\subsubsection{可视化叠加与调试信息}
+\label{sec:cv:osd}
+
+为便于实时调试和状态监控，系统在每一帧画面上以OSD（On-Screen Display）方式叠加以下信息：
+
+\begin{itemize}
+    \item \textbf{分辨率}（RES）：当前画面尺寸，红色字体
+    \item \textbf{帧率}（FPS）：最近10帧的滑动平均帧率，绿色字体
+    \item \textbf{距离}（Distance）：来自距离传感器模块的实时测距值（单位：cm），蓝色字体
+    \item \textbf{状态}（Status）：当前追踪状态——\texttt{Locked}（绿色）/ \texttt{Searching} 或 \texttt{Scanning}（橙色）
+    \item \textbf{中心十字线}：灰色十字线标记画面几何中心
+    \item \textbf{目标标记}：已锁定目标时，在目标中心绘制蓝色实心圆并在旁边标注水平偏差值
+    \item \textbf{边界框}：YOLO检测框以黄色矩形标注
+\end{itemize}
+
+\begin{minted}{python}
+# 分辨率
+cv2.putText(annotated, f"RES: {width}x{height}",
+            (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
+            1, (0, 0, 255), 2, lineType=cv2.LINE_AA)
+# 帧率
+cv2.putText(annotated, f"FPS: {int(avg_fps)}",
+            (10, 60), cv2.FONT_HERSHEY_SIMPLEX,
+            1, (0, 255, 0), 2, lineType=cv2.LINE_AA)
+# 距离
+cv2.putText(annotated, f"Distance: {distance_text}",
+            (10, 90), cv2.FONT_HERSHEY_SIMPLEX,
+            1, (255, 0, 0), 2, lineType=cv2.LINE_AA)
+# 状态
+state_text = "Locked" if target_locked else \
+             ("Scanning" if scan_needed else "Searching")
+cv2.putText(annotated, f"Status: {state_text}",
+            (10, 120), cv2.FONT_HERSHEY_SIMPLEX,
+            1, color, 2, lineType=cv2.LINE_AA)
+\end{minted}
+
+\subsubsection{模块间的数据交互}
+\label{sec:cv:interface}
+
+计算机视觉模块通过模块级全局变量与系统其他模块进行数据共享：
+
+\begin{itemize}
+    \item \texttt{visual\_error\_x}：目标相对于画面中心的水平像素偏差，供底盘控制模块（\texttt{chassis\_ctrl.py}）计算旋转角速度
+    \item \texttt{target\_locked}：目标锁定状态标志，供主控逻辑判断当前追踪阶段
+    \item \texttt{scan\_needed}：360度扫描搜球请求标志，触发底盘执行扫描旋转动作
+    \item \texttt{latest\_frame / annotated\_frame}：原始帧和标注帧，供其他需要图像数据的模块使用
+\end{itemize}
+
+同时，视觉模块也读取距离传感器模块提供的\texttt{latest\_distance}变量，在OSD上实时显示网球距离信息，实现了多传感器信息的融合呈现。
+
+\subsubsection{小结}
+\label{sec:cv:summary}
+
+CourtSweeper的计算机视觉模块采用YOLO深度学习框架，实现了从数据采集、模型训练、跨平台部署到实时推理的完整闭环。通过最近目标筛选策略、目标锁定与扫描搜球机制、以及水平视觉偏差计算，模块为机器人的自主追踪和拾球行为提供了可靠的感知输入。模型部署管线支持PyTorch→ONNX→TensorRT三级转换，可在NVIDIA Jetson等边缘设备上以FP16半精度实现高效推理，满足了实时性要求。
+
+\subsection{进球电机控制模块}
+\label{sec:motor}
+
+进球电机控制模块是CourtSweeper系统的关键执行单元，负责在视觉系统锁定网球目标后，驱动双滚轮机械结构将球卷入车内网箱。该模块横跨硬件底层驱动与上层决策逻辑，形成从信号生成到智能触发的完整控制链路。
+
+\subsubsection{硬件驱动架构}
+\label{sec:motor_hw}
+
+进球机构由两个额定12\,V、4600\,RPM的775 D轴直流电机驱动，每个电机通过30\,mm延长铜联轴器与60\,mm高摩擦实心橡胶滚轮耦合。电机驱动采用两片BTS7960大电流全桥驱动模块（峰值电流可达43\,A），独立控制左右两个滚轮的正反转与转速。
+
+BTS7960驱动模块通过三线接口（使能端EN、正向PWM端RPWM、反向PWM端LPWM）与下层控制器连接。系统采用独立的3S（11.1\,V）5200\,mAh锂电池（放电倍率40C）为驱动模块供电，确保在球体压缩瞬间为电机提供足够的突发电流，同时避免对主控逻辑电路造成电压跌落干扰。底层PWM信号生成由Arduino微控制器负责，其通过USB串口接收来自Jetson Orin NX的指令。
+\subsubsection{底层固件设计}
+\label{sec:motor_firmware}
+
+底层Arduino固件（\texttt{roller\_setting.ino}）负责将串口指令转换为PWM信号，实现对双路BTS7960驱动器的实时控制。固件采用引脚映射的方式定义了左右电机的控制接口，如表~\ref{tab:motor_pinmap}所示。
+
+\begin{table}[htbp]
+  \footnotesize
+  \centering
+  \caption{775电机驱动引脚映射表}
+  \label{tab:motor_pinmap}
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{@{}cccc@{}}
+    \toprule
+    \textbf{电机} & \textbf{使能端 (EN)} & \textbf{正转PWM (RPWM)} & \textbf{反转PWM (LPWM)} \\
+    \midrule
+    左电机  & 引脚 4  & 引脚 5 & 引脚 6 \\
+    右电机  & 引脚 7  & 引脚 9 & 引脚 10 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+固件主循环以阻塞式串口读取方式工作：当串口缓冲区有数据时，调用\texttt{Serial.parseInt()}连续解析左右电机转速值（格式为\texttt{"L\_speed,R\_speed\textbackslash n"}），随后调用\texttt{driveMotor()}函数将数值转换为对应的PWM信号。该函数对转速进行$[-255, 255]$限幅后，根据符号决定转动方向：正值触发RPWM通道、负值触发LPWM通道、零值则拉低使能端以关断输出。
+
+\begin{minted}{c}
+void driveMotor(int enPin, int fwdPin, int revPin, int speed) {
+  speed = constrain(speed, -255, 255);
+
+  if (speed == 0) {
+    digitalWrite(enPin, LOW);
+    analogWrite(fwdPin, 0);
+    analogWrite(revPin, 0);
+  } else if (speed > 0) {
+    digitalWrite(enPin, HIGH);
+    analogWrite(fwdPin, speed);
+    analogWrite(revPin, 0);
+  } else {
+    digitalWrite(enPin, HIGH);
+    analogWrite(fwdPin, 0);
+    analogWrite(revPin, abs(speed));
+  }
+}
+\end{minted}
+
+为保证系统安全，固件内置了通信超时保护机制。每次成功解析指令后记录时间戳，若超过500\,ms未收到新指令且电机处于运动状态，则自动调用\texttt{stopMotor()}将所有电机输出置零，防止通信中断时电机持续空转。
+
+\begin{minted}{c}
+void loop() {
+  if (Serial.available() > 0) {
+    int speedL = Serial.parseInt();
+    int speedR = Serial.parseInt();
+
+    if (Serial.read() == '\n') {
+      driveMotor(L_EN, L_RPWM, L_LPWM, -speedL);
+      driveMotor(R_EN, R_RPWM, R_LPWM, speedR);
+
+      lastRecvTime = millis();
+
+      if (speedL != 0 || speedR != 0) {
+        isMoving = true;
+      }
+    }
+  }
+
+  if (isMoving && (millis() - lastRecvTime > 500)) {
+    stopMotor();
+    isMoving = false;
+  }
+}
+\end{minted}
+
+\subsubsection{上层控制接口}
+\label{sec:motor_python}
+
+在Jetson Orin NX端，Python模块\texttt{roller\_drive.py}封装了与Arduino的串口通信。其核心为\texttt{RollerMotor}类：构造函数通过PySerial库以115200\,baud波特率建立连接并等待2\,s的初始化时间，\texttt{set\_speed()}方法将左右轮速格式化为CSV字符串后写入串口。
+
+\begin{minted}{python}
+class RollerMotor:
+    def __init__(self, port='', baudrate=115200):
+        logger.info(f"Connecting to motor on {port} ...")
+        try:
+            self.ser = serial.Serial(port, baudrate, timeout=1)
+            time.sleep(2)
+            logger.info("Connection successful!")
+        except Exception as e:
+            logger.error(f"Failed to connect to serial port. Error details: {e}")
+            exit(1)
+
+    def set_speed(self, left_speed, right_speed):
+        command = f"{int(left_speed)},{int(right_speed)}\n"
+        self.ser.write(command.encode('utf-8'))
+        logger.info(f"Roller Speed: L = {left_speed}, R = {right_speed}")
+
+    def close(self):
+        self.set_speed(0, 0)
+        time.sleep(0.1)
+        self.ser.close()
+        logger.info("Connection closed.")
+\end{minted}
+
+该设计将Python端作为纯指令下发层，所有PWM时序生成与方向逻辑下放至Arduino固件处理，使得上层可专注于决策调度，无需关心底层时间敏感的信号生成。\texttt{close()}方法通过先发送零速指令再关闭串口的顺序，确保安全停机。
+
+\subsubsection{FSM集成与进球触发逻辑}
+\label{sec:motor_fsm}
+
+电机控制模块被整合入底盘控制主循环（\texttt{chassis\_ctrl.py}）中，由有限状态机（FSM）根据视觉感知结果进行触发。进球逻辑的触发与执行过程可分解为以下三个阶段：
+
+\paragraph{阶段一：目标距离预判}
+
+当视觉系统锁定网球目标（\texttt{target\_locked = True}）后，系统进入追逐序列（\texttt{is\_chasing\_sequence}）。PD控制器驱动底盘持续对准目标并靠近，同时实时读取前方距离传感器数值。当目标距离缩短至200\,mm以内时，判定网球已进入滚轮可及范围，立即进入预启动阶段。
+
+\paragraph{阶段二：电机预启动与缓慢推进}
+
+进入预启动阶段后，电机以中等转速（左右均设置为90，占空比约35\%）开始转动，同时底盘以前向30的速度持续缓慢推进。这一设计使滚轮在与网球接触的瞬间已具备旋转动能，避免从静止加速导致的卡球或弹飞现象。
+
+\begin{minted}{python}
+if dist <= 200:
+    logger.info(f"目标进入预备区 ({dist/10:.1f}cm)！预启动电机并缓慢推进...")
+
+    if intake_motor:
+        intake_motor.set_speed(90, 90)
+
+    drive_chassis(ep_chassis, forward_speed=30, turn_speed=0)
+\end{minted}
+
+\paragraph{阶段三：进球判定与超时保护}
+
+电机启动后，系统进入最长为3\,s的吞球判定窗口。在20\,ms的采样周期下持续监测前方距离传感器数值：若网球被成功卷入，距离传感器读数将跳变至超出测量范围（$>250\,$mm）；系统对此进行连续10次（共计200\,ms）的消失确认以防止误判。确认球已吞入后，立即停止底盘与电机，并将追逐状态复位，使FSM回到搜索状态继续覆盖路径。
+
+若在3\,s窗口内距离传感器始终未出现跳变，判定发生卡球或漏球异常，同样停止执行并输出警告日志，避免电机长时间堵转导致过热。
+
+\begin{minted}{python}
+swallow_start_time = time.time()
+missing_count = 0
+
+while time.time() - swallow_start_time < 3.0:
+    current_dist = ds.latest_distance if ds.latest_distance is not None else 8848
+
+    if current_dist > 250:
+        missing_count += 1
+    else:
+        missing_count = 0
+
+    if missing_count >= 10:
+        is_swallowed = True
+        break
+
+    time.sleep(0.02)
+
+if is_swallowed:
+    logger.info("球已成功吞入网箱！")
+else:
+    logger.info("推进超时，发生卡球或漏球。")
+
+chassis_stop(ep_chassis)
+
+if intake_motor:
+    intake_motor.set_speed(0, 0)
+\end{minted}
+
+\paragraph{盲区接力机制}
+
+此外，系统还设计了盲区接力逻辑：当网球距离已缩短至300\,mm以内但视觉目标短暂丢失时（距离传感器仍在450\,mm以内有效范围内），底盘保持直行推进而不立即中断追逐序列。这一机制有效弥补了近距离下摄像头视野受限的视觉盲区，提高了近距进球成功率。
+
+
+% ============================================================
+\subsection{基于近距感知的底盘导航模块}
+\label{sec:chassis}
+本模块将实时近距感知与闭环 PID 底盘控制器相结合，负责完成球体拾取的最后阶段：对准、
+接近与物理摄入。它通过一套紧耦合状态机将视觉感知流水线（第~3.1.6~节）与进球执行器
+（第~3.X~节）连接起来，同时融合两路独立数据流——来自 YOLO 检测器的图像平面质心偏移量，
+以及 RoboMaster EP 板载红外传感器的毫米级距离读数。
+
+% ------------------------------------------------------------
+\subsubsection{距离感知子模块}
+\label{sec:distance_sub}
+
+\paragraph{通过 RoboMaster-SDK-Ultra 访问硬件接口。}
+距离测量依赖 RoboMaster EP 内置的红外近距传感器，通过
+\textbf{RoboMaster-SDK-Ultra} 进行访问。该 SDK 是 DJI 官方 Python SDK
+的社区维护高性能分支，将兼容性扩展至 Python~3.7 至 3.13，并内置
+\texttt{libmedia\_codec\_ultra} 以实现零拷贝 H.264 解码。
+在 Jetson Orin NX 上的安装方式如下：
+
+\begin{minted}{bash}
+# Automated installation (recommended)
+git clone https://github.com/RamessesN/Robomaster-SDK-Ultra
+cd Robomaster-SDK-Ultra
+sudo chmod 755 ./installer.sh && ./installer.sh
+
+# Or manual installation on Ubuntu/Debian
+sudo apt update && sudo apt install ffmpeg libopus-dev
+pip install -e .
+cd robomaster_lib/libmedia_codec_ultra && pip install -e .
+cd ../../pybind11 && pip install -e .
+\end{minted}
+
+安装完成后，传感器 API 与 DJI 官方文档保持一致，但需从补丁命名空间导入：
+
+\begin{minted}{python}
+from robomaster_ultra import robot   # replaces: from robomaster import robot
+\end{minted}
+
+\paragraph{订阅设计。}
+距离数据通过 SDK 提供的异步订阅回调机制获取。一个专用后台线程调用
+\texttt{sub\_distance(freq=10, callback=...)} 注册 10\,Hz 轮询循环；
+每次回调触发时，将原始传感器读数（单位：毫米）写入模块级共享变量：
+
+\begin{minted}{python}
+# src/distance/distance_sub.py
+
+latest_distance: float | None = None
+
+def get_distance(ep_sensor):
+    """Register the 10 Hz distance subscription."""
+    ep_sensor.sub_distance(freq=10, callback=sub_data_handler_distance)
+
+def sub_data_handler_distance(sub_info):
+    """Callback: atomically update the shared distance register."""
+    global latest_distance
+    latest_distance = sub_info[0]   # unit: millimetres
+\end{minted}
+
+哨兵值 \texttt{None} 用于区分"传感器尚未初始化"与合法的零值读数。
+在底盘控制器的所有逻辑中，\texttt{None} 读数将被符号常量 \texttt{8848}
+（珠穆朗玛峰高度，以米为单位，此处作为等效无穷远距离使用）替代，
+确保在无传感器数据时控制器默认回退至纯视觉引导模式。
+
+% ------------------------------------------------------------
+\subsubsection{PID 控制器配置}
+
+两个独立的 PID 控制器分别管控接近过程中所需的两个自由度：
+
+\begin{minted}{python}
+from simple_pid import PID
+
+# Lateral alignment: drives image-plane centroid error to zero
+pid_turn = PID(0.15, 0.03, 0.03, setpoint=0)
+pid_turn.output_limits = (-50, 50)      # RPM-equivalent units
+
+# Longitudinal approach: drives sensor distance to 10 mm (contact)
+pid_forward = PID(0.5, 0.1, 0.05, setpoint=10)
+pid_forward.output_limits = (-40, 40)
+\end{minted}
+
+\begin{itemize}
+  \item \textbf{\texttt{pid\_turn}} 接收由 YOLO 质心提取器产生的像素空间横向偏移量
+        \texttt{visual\_error\_x}（正值表示目标位于画面中心右侧）。其输出在应用前取反，
+        使得目标偏右时产生顺时针底盘旋转。
+
+  \item \textbf{\texttt{pid\_forward}} 接收红外距离读数（毫米），并将机器人驱动至
+        10\,mm 的目标距离——即与球体的物理接触位置。当距离小于 800\,mm 时，该控制器
+        接管开环巡航速度（30 RPM）；超过 800\,mm 时，底盘以固定巡航速度前进，
+        以缩短接近时间。
+\end{itemize}
+
+% ------------------------------------------------------------
+\subsubsection{追踪序列状态跟踪}
+
+布尔标志位 \texttt{is\_chasing\_sequence} 将视觉锁定与物理接近阶段解耦。
+一旦 YOLO 流水线将 \texttt{target\_locked} 置为 \texttt{True}，该标志位即被锁存为高，
+并将最后一次有效距离读数保存至 \texttt{last\_valid\_dist}。
+仅当视觉模块发出 \texttt{scan\_needed = True} 信号时，该标志位才会被清除——
+这表明在完成一次摄入或超时后发生了完全的目标丢失。
+
+该设计可防止距离传感器在视觉锁定尚未建立之前，因无关障碍物短暂进入传感器视野而
+误触发进球电机。
+
+\begin{minted}{python}
+if target_valid:
+    is_chasing_sequence = True
+    last_valid_dist = dist
+elif need_scan:
+    is_chasing_sequence = False
+    last_valid_dist = 8848
+\end{minted}
+
+% ------------------------------------------------------------
+\subsubsection{多阶段接近与摄入逻辑}
+
+当 \texttt{is\_chasing\_sequence} 激活时，控制器根据当前传感器读数执行三种
+按优先级排列的行为。
+
+\paragraph{阶段一——巡航跟踪（\texttt{dist} > 800\,mm）。}
+两路 PID 回路同时工作。转向控制器修正横向偏差；当质心误差超过 40 像素时，
+前进速度被限制至 5 RPM，以确保旋转对准稳定后再继续推进：
+
+\begin{minted}{python}
+turn_speed = -pid_turn(error_x)
+if abs(error_x) > 40:
+    forward_speed = 5           # prioritise alignment over advance
+else:
+    if dist < 800:
+        forward_speed = -pid_forward(dist)   # PID-controlled approach
+    else:
+        forward_speed = 30      # open-loop cruise
+drive_chassis(ep_chassis, forward_speed, turn_speed)
+\end{minted}
+
+\paragraph{阶段二——盲区接力（目标丢失且 \texttt{dist} < 450\,mm）。}
+摄像头的最小对焦距离以及摄像头与进球滚轮之间的物理偏移，共同形成了一段"盲区"——
+球体在进入滚轮之前便已消失于视频画面。接力逻辑负责跨越这一盲区：若目标在 300\,mm
+以内最近一次被确认（\texttt{last\_valid\_dist < 300}），且距离传感器仍读数低于
+450\,mm，则底盘在无视觉反馈的情况下以 30 RPM 持续直行：
+
+\begin{minted}{python}
+elif not target_valid and dist < 450 and last_valid_dist < 300:
+    logger.info(
+        f"Blind-zone relay "
+        f"(current: {dist/10:.1f} cm, "
+        f"last valid: {last_valid_dist/10:.1f} cm) "
+        "-- maintaining straight advance..."
+    )
+    drive_chassis(ep_chassis, forward_speed=30, turn_speed=0)
+\end{minted}
+
+\paragraph{阶段三——摄入触发（\texttt{dist} $\leq$ 200\,mm）。}
+当传感器确认球体已进入 200\,mm 范围内时，进球电机预先以全速启动，
+底盘以固定 30 RPM 向前推进。随后，滑动窗口检测器持续监测球体消失信号：
+若距离读数在连续 10 个 20\,ms 周期内（\texttt{missing\_count $\geq$ 10}）
+均超过 250\,mm，则判定球体成功摄入。3 秒硬超时机制用于防范卡球或漏球：
+
+\begin{minted}{python}
+if dist <= 200:
+    logger.info(
+        f"Target entered pre-ingestion zone "
+        f"({dist/10:.1f} cm) -- pre-spinning motors..."
+    )
+    if intake_motor:
+        intake_motor.set_speed(90, 90)
+    drive_chassis(ep_chassis, forward_speed=30, turn_speed=0)
+
+    swallow_start_time = time.time()
+    missing_count = 0
+    is_swallowed = False
+
+    while time.time() - swallow_start_time < 3.0:
+        current_dist = ds.latest_distance \
+            if ds.latest_distance is not None else 8848
+        if current_dist > 250:
+            missing_count += 1
+        else:
+            missing_count = 0
+        if missing_count >= 10:
+            is_swallowed = True
+            break
+        time.sleep(0.02)
+
+    if is_swallowed:
+        logger.info("Ball successfully ingested into storage bay.")
+    else:
+        logger.info("Warning: advance timeout -- possible jam or miss.")
+
+    chassis_stop(ep_chassis)
+    if intake_motor:
+        intake_motor.set_speed(0, 0)
+    is_chasing_sequence = False
+    last_valid_dist = 8848
+    time.sleep(0.5)
+    continue
+\end{minted}
+
+% ------------------------------------------------------------
+\subsubsection{底盘驱动原语}
+
+麦克纳姆轮驱动方程将 \texttt{forward\_speed} 与 \texttt{turn\_speed}
+两个标量指令转换为各轮的 RPM 目标值。
+由于 DJI SDK 的 \texttt{drive\_wheels(w1, w2, w3, w4)} 接口采用
+右前 / 左前 / 左后 / 右后的轮序约定，差速混合计算如下：
+
+\begin{minted}{python}
+def drive_chassis(ep_chassis, forward_speed, turn_speed):
+    left_speed  = forward_speed + turn_speed
+    right_speed = forward_speed - turn_speed
+    ep_chassis.drive_wheels(
+        w1=right_speed,   # right-front
+        w2=left_speed,    # left-front
+        w3=left_speed,    # left-rear
+        w4=right_speed    # right-rear
+    )
+
+def chassis_stop(ep_chassis):
+    ep_chassis.drive_wheels(w1=0, w2=0, w3=0, w4=0)
+    time.sleep(0.02)     # brief settle pause before next command
+\end{minted}
+
+纯直行时两侧速度相等；\texttt{turn\_speed} 非零时，一侧速度增大而另一侧减小，
+从而产生叠加于平移速度之上的原地旋转。\texttt{chassis\_stop} 中的 20\,ms
+稳定延时可防止在前一轮速数据包被底盘固件确认之前，新的突发指令被提前发出。
+
+% ------------------------------------------------------------
+\subsubsection{空闲与搜索行为}
+
+当无追踪任务进行时，控制器回退至两种由视觉模块驱动的被动行为：
+
+\begin{minted}{python}
+else:
+    if need_scan:
+        # Rotate in place to sweep the camera FOV
+        drive_chassis(ep_chassis, forward_speed=0, turn_speed=30)
+    else:
+        chassis_stop(ep_chassis)
+\end{minted}
+
+\texttt{need\_scan} 标志位由有限状态机的 SEARCHING 状态触发，表明覆盖路径跟踪
+已暂时中止，等待本地重新检测。以固定 30 RPM 原地旋转可将 120° 摄像头视场扫过
+周围区域，一旦检测到新目标，追踪序列即自动重新介入。
