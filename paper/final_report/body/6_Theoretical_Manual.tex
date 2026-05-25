@@ -1,0 +1,783 @@
+\ieeesection[Theoretical Manual]{Theoretical Manual}
+\label{sec:theory}
+
+\textcolor{gray}{\rule{\linewidth}{3pt}}
+
+This section presents the mathematical and algorithmic foundations underpinning each subsystem of the CourtSweeper. It formalises the sensor models, kinematic equations, control laws, navigation algorithms, communication protocols, and actuation principles introduced in the preceding design sections (\S\ref{sec:hardware}--\S\ref{sec:ui_design}).
+
+% ============================================================
+\subsection{Perception Models}
+\label{sec:theory_perception}
+
+\subsubsection{Camera Pinhole Model}
+
+The system adopts the standard pinhole camera model. Let the camera intrinsic matrix be:
+
+\begin{equation}
+K =
+\begin{bmatrix}
+f_x & 0   & c_x \\
+0   & f_y & c_y \\
+0   & 0   & 1
+\end{bmatrix},
+\quad
+P =
+\begin{bmatrix}
+f_x & 0   & c_x & 0 \\
+0   & f_y & c_y & 0 \\
+0   & 0   & 1   & 0
+\end{bmatrix}
+\end{equation}
+
+For the CourtSweeper, the intrinsic parameters are approximated as $f_x = f_y = W$ and $(c_x, c_y) = (W/2, H/2)$, where $W \times H$ is the resized frame dimension (typically $640 \times 360$). The lens is assumed to be distortion-free (Brown-Conrady model with all $k_i = 0$).
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{Camera Intrinsic Parameters}
+  \label{tab:cam_intrinsics}
+  \begin{tabular}{@{}lccccr@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Value} & \textbf{Min.} & \textbf{Typical} & \textbf{Max.} & \textbf{Units} \\
+    \midrule
+    $f_x, f_y$ (focal length) & $W$ & 320 & 640 & 1280 & px \\
+    $c_x$ (principal point x) & $W/2$ & 160 & 320 & 640  & px \\
+    $c_y$ (principal point y) & $H/2$ & 90  & 180 & 360  & px \\
+    Distortion & \texttt{plumb\_bob} & --- & $k_i = 0$ & --- & --- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{IBVS Visual Error.}
+The system employs Image-Based Visual Servoing (IBVS): the control error is computed directly in the image plane rather than in 3D Cartesian space. Given the YOLO-detected target centre $(x_t, y_t)$ and the frame centre $(c_x, c_y)$:
+
+\begin{equation}
+e_x(t) = x_t - c_x
+\label{eq:visual_error}
+\end{equation}
+
+A positive $e_x$ indicates the target lies to the right of the optical axis. This scalar is fed as the process variable to the lateral PID controller (see \S\ref{sec:theory_pid}).
+
+\paragraph{Nearest-Target Depth Proxy.}
+When multiple tennis balls appear in a single frame, the system selects the nearest candidate using the bottom Y-coordinate heuristic:
+
+\begin{equation}
+\text{target} = \arg\max_{\text{box}_i}\; (y_{2,i})
+\label{eq:nearest}
+\end{equation}
+
+Larger $y_2$ values correspond to objects lower in the frame, which under the ground-facing camera assumption implies closer proximity.
+
+\subsubsection{YOLO Object Detection Theory}
+
+\paragraph{Architecture.}
+The system deploys YOLOv6-Nano (\texttt{yolo26n.pt}), a single-stage anchor-free detector comprising three components:
+
+\begin{itemize}
+  \item \textbf{Backbone:} EfficientRep --- a re-parameterisation-friendly CNN for multi-scale feature extraction.
+  \item \textbf{Neck:} Rep-PAN --- a Path Aggregation Network with re-parameterisation blocks.
+  \item \textbf{Head:} Decoupled head with independent classification and localisation branches.
+\end{itemize}
+
+\paragraph{Loss Functions.}
+Training minimises the composite loss:
+
+\begin{equation}
+\mathcal{L}_{\text{total}} = \lambda_{\text{box}} \mathcal{L}_{\text{CIoU}}
+                         + \lambda_{\text{cls}} \mathcal{L}_{\text{BCE}}
+                         + \lambda_{\text{dfl}} \mathcal{L}_{\text{DFL}}
+\end{equation}
+
+where:
+\begin{itemize}
+  \item $\mathcal{L}_{\text{CIoU}}$ (Complete IoU loss) regresses bounding boxes by jointly optimising overlap area, centre-point distance, and aspect ratio consistency.
+  \item $\mathcal{L}_{\text{BCE}}$ (Binary Cross-Entropy) penalises class misclassification.
+  \item $\mathcal{L}_{\text{DFL}}$ (Distribution Focal Loss) models box edge positions as discrete probability distributions for anchor-free regression.
+  \item $\lambda_{\text{box}} = 7.5$, $\lambda_{\text{cls}} = 0.5$, $\lambda_{\text{dfl}} = 1.5$ are empirically weighted.
+\end{itemize}
+
+\paragraph{Training Hyperparameters.}
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{YOLO Training Hyperparameters}
+  \label{tab:yolo_training}
+  \begin{tabular}{@{}lclr@{}}
+    \toprule
+    \textbf{Hyperparameter} & \textbf{Value} & \textbf{Min.} & \textbf{Typical} \\
+    \midrule
+    Epochs                          & 200    & 50     & 200--300 \\
+    Input size (imgsz)              & 640    & 320    & 640      \\
+    Batch size                      & 16     & 4      & 16--64   \\
+    Initial LR ($lr0$)              & 0.01   & 0.001  & 0.01     \\
+    Final LR factor ($lrf$)         & 0.01   & 0.001  & 0.01     \\
+    Optimiser                       & SGD    & ---    & SGD (momentum = 0.937) \\
+    Weight decay                    & 0.0005 & 0      & 0.0005 \\
+    Warmup epochs                   & 3.0    & 0      & 3.0      \\
+    Mosaic augmentation             & 1.0    & 0      & 1.0      \\
+    Horizontal flip probability     & 0.5    & 0      & 0.5      \\
+    HSV perturbation                & (0.015, 0.7, 0.4) & --- & --- \\
+    Random erasing probability      & 0.4    & 0      & 0.4      \\
+    Early-stopping patience         & 100    & 10     & 50--100  \\
+    Automatic Mixed Precision (AMP) & ON     & ---    & ON       \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Inference Parameters.}
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{YOLO Inference Parameters}
+  \label{tab:yolo_inference}
+  \begin{tabular}{@{}lclr@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Value} & \textbf{Min.} & \textbf{Typical} \\
+    \midrule
+    Confidence threshold     & 0.25  & 0.05  & 0.25--0.50 \\
+    NMS IoU threshold        & 0.7   & 0.3   & 0.5--0.7   \\
+    Inference resolution     & $640\times360$ & --- & --- \\
+    Input channels           & 3 (RGB) & --- & --- \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Model Conversion Pipeline.}
+For edge deployment on the NVIDIA Jetson Orin NX, the model undergoes a three-stage optimisation:
+
+\begin{equation}
+\text{PyTorch (.pt)} \xrightarrow{\;\text{export}\;} \text{ONNX (.onnx)} \xrightarrow{\;\texttt{trtexec}\;} \text{TensorRT (.engine, FP16)}
+\end{equation}
+
+The FP16 half-precision engine reduces inference latency by approximately $2\times$ with negligible detection accuracy degradation on the Jetson's Ampere GPU.
+
+\subsubsection{LiDAR Triangulation Principle}
+
+The YDLIDAR X3-YB-1 operates on the laser triangulation principle. An infrared laser emitter projects a spot onto the target surface; the reflected spot is imaged by a CMOS sensor at a known baseline offset from the emitter. The distance $d$ to the target is recovered by solving the triangle formed by the laser axis, the lens optical axis, and the reflected ray path:
+
+\begin{equation}
+d = \frac{b \cdot f}{\Delta x}
+\end{equation}
+
+where $b$ is the baseline distance, $f$ the receiver lens focal length, and $\Delta x$ the spot displacement on the CMOS array. The sensor head rotates at 7\,Hz to achieve 360\textdegree{} scanning coverage.
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{LiDAR Operating Parameters}
+  \label{tab:lidar_params}
+  \begin{tabular}{@{}lccccr@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Min.} & \textbf{Typical} & \textbf{Max.} & \textbf{Units} & \textbf{Remarks} \\
+    \midrule
+    Sampling rate    & ---  & 4000  & ---  & Hz   & Points per second \\
+    Scan frequency   & ---  & 7     & ---  & Hz   & Motor rotation \\
+    Angular resolution & 0.6 & ---  & ---  & \textdegree & At 7\,Hz \\
+    Range            & 0.05 & ---  & 10   & m    & Indoor, 80\% reflectivity \\
+    Minimum filtering threshold & --- & 20 & --- & mm & \texttt{MIN\_DIST\_MM} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{IR Proximity Sensing}
+
+The RoboMaster EP chassis provides a built-in infrared proximity sensor. Range data $d_{\text{IR}}(t)$ is polled at 10\,Hz via the SDK subscription callback and used as a continuous scalar input (unit: millimetres) for longitudinal PID control and ingestion stage triggering.
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{IR Distance Sensor Parameters}
+  \label{tab:ir_params}
+  \begin{tabular}{@{}lcccr@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Min.} & \textbf{Typical} & \textbf{Max.} & \textbf{Units} \\
+    \midrule
+    Polling frequency   & ---  & 10  & ---  & Hz  \\
+    Valid range (operational) & 10 & --- & 8848 & mm  \\
+    Pre-ingestion threshold    & --- & 200 & ---  & mm  \\
+    Blind-zone range   & ---  & $<450$ & ---  & mm  \\
+    Ingestion-confirmation threshold & --- & $>250$ & --- & mm \\
+    Sentinel (uninitialised) & --- & 8848 & --- & mm \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The sentinel value 8848\,mm (height of Mount Everest in metres) is used to represent an infinitely far reading when the sensor has not yet been initialised, causing the controller to default to a pure vision-guided mode.
+
+% ============================================================
+\subsection{Mecanum Wheel Kinematics}
+\label{sec:theory_kinematics}
+
+\subsubsection{3-DOF Full Holonomic Inverse Kinematics (Nav2 Mode)}
+
+For autonomous navigation with Nav2, the Twist velocity command $\mathbf{v} = (v_x, v_y, \omega_z)$ is decomposed into per-wheel speeds using the standard Mecanum inverse kinematics:
+
+\begin{equation}
+\begin{bmatrix}
+\omega_1 \\ \omega_2 \\ \omega_3 \\ \omega_4
+\end{bmatrix}
+=
+\gamma \cdot
+\begin{bmatrix}
+1  & 1  & 1 \\
+1  & -1 & -1 \\
+1  & -1 & -1 \\
+1  & 1  & 1
+\end{bmatrix}
+\begin{bmatrix}
+v_x \\ v_y \\ \omega_z
+\end{bmatrix}
+\end{equation}
+
+where $\gamma = 100$ is an empirical RPM scaling factor. Explicitly:
+
+\begin{align}
+\omega_{\text{right}} &= v_x + v_y + \omega_z \\
+\omega_{\text{left}}  &= v_x - v_y - \omega_z
+\end{align}
+
+with the final wheel assignments:
+
+\begin{equation}
+\begin{aligned}
+\text{w1 (right-front)} &= \omega_{\text{right}} \times 100 \\
+\text{w2 (left-front)}  &= \omega_{\text{left}} \times 100 \\
+\text{w3 (left-rear)}   &= \omega_{\text{left}} \times 100 \\
+\text{w4 (right-rear)}  &= \omega_{\text{right}} \times 100
+\end{aligned}
+\end{equation}
+
+\subsubsection{2-DOF Simplified Inverse Kinematics (Reactive Mode)}
+
+For visual servoing, the control is reduced to two scalar commands --- forward speed $v_f$ and turn speed $v_t$:
+
+\begin{equation}
+\begin{aligned}
+\omega_{\text{left}}  &= v_f + v_t \\
+\omega_{\text{right}} &= v_f - v_t
+\end{aligned}
+\label{eq:mec_2dof}
+\end{equation}
+
+This formulation sacrifices lateral strafing capability but allows the dual-PID controller to directly govern approach-while-aligning behaviour with two degrees of freedom.
+
+\subsubsection{Primitive Motion Analysis}
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{Wheel-Speed Decomposition for Fundamental Motions (2-DOF Model)}
+  \label{tab:mec_primitives}
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    \textbf{Motion} & $\omega_{\text{left}}$ & $\omega_{\text{right}}$ \\
+    \midrule
+    Pure forward  ($v_t = 0$) & $v_f$  & $v_f$  \\
+    Pure rotation ($v_f = 0$) & $+v_t$ & $-v_t$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Wheel Numbering Convention.}
+The DJI SDK \texttt{drive\_wheels(w1, w2, w3, w4)} interface adopts the following mapping:
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{DJI SDK Wheel Convention}
+  \label{tab:wheel_convention}
+  \begin{tabular}{@{}cccc@{}}
+    \toprule
+    \textbf{w1} & \textbf{w2} & \textbf{w3} & \textbf{w4} \\
+    \midrule
+    Right-Front & Left-Front & Left-Rear & Right-Rear \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ============================================================
+\subsection{PID Control Theory}
+\label{sec:theory_pid}
+
+The reactive chassis controller employs two independent PID regulators in the standard parallel form:
+
+\begin{equation}
+u(t) = K_p \, e(t) + K_i \int_0^t e(\tau)\,d\tau + K_d \, \frac{de(t)}{dt}
+\label{eq:pid_parallel}
+\end{equation}
+
+where $e(t)$ is the control error at time $t$, and $(K_p, K_i, K_d)$ are the proportional, integral, and derivative gains respectively.
+
+\subsubsection{Lateral Alignment PID (\texttt{pid\_turn})}
+
+This controller drives the target's image-plane centroid offset $e_x$ (Equation~\ref{eq:visual_error}) to zero, aligning the robot with the ball.
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{Lateral PID Parameters}
+  \label{tab:pid_turn}
+  \begin{tabular}{@{}lcccccr@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Min.} & \textbf{Typical} & \textbf{Max.} & \textbf{Units} & \textbf{Remarks} \\
+    \midrule
+    $K_p$        & ---  & 0.15  & ---  & RPM/px        & Proportional gain \\
+    $K_i$        & ---  & 0.03  & ---  & RPM/(px\,$\cdot$\,s) & Integral gain \\
+    $K_d$        & ---  & 0.03  & ---  & RPM\,$\cdot$\,s/px & Derivative gain \\
+    Setpoint     & ---  & 0     & ---  & px            & Centred on optical axis \\
+    Output lower & -50  & ---   & ---  & RPM           & Max left-turn speed \\
+    Output upper & ---  & ---   & +50  & RPM           & Max right-turn speed \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The output is negated before application: a target on the right ($e_x > 0$) produces a negative turn command, i.e., clockwise rotation.
+
+\subsubsection{Longitudinal Approach PID (\texttt{pid\_forward})}
+
+This controller regulates the IR-measured distance $d(t)$ toward a 10\,mm setpoint (physical contact with the ball).
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{Longitudinal PID Parameters}
+  \label{tab:pid_forward}
+  \begin{tabular}{@{}lcccccr@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Min.} & \textbf{Typical} & \textbf{Max.} & \textbf{Units} & \textbf{Remarks} \\
+    \midrule
+    $K_p$        & ---  & 0.5   & ---  & RPM/mm        & Proportional gain \\
+    $K_i$        & ---  & 0.1   & ---  & RPM/(mm\,$\cdot$\,s) & Integral gain \\
+    $K_d$        & ---  & 0.05  & ---  & RPM\,$\cdot$\,s/mm & Derivative gain \\
+    Setpoint     & ---  & 10    & ---  & mm            & Ball contact distance \\
+    Output lower & -40  & ---   & ---  & RPM           & Max reverse speed \\
+    Output upper & ---  & ---   & +40  & RPM           & Max forward speed \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{Dual-PID Visual Servoing Architecture}
+
+The two controllers operate in a priority-ordered cascade:
+
+\begin{enumerate}
+  \item \textbf{Cruise tracking} ($d > 800$\,mm): Both PID loops active. If $|e_x| > 40$\,px, forward speed is clamped to 5\,RPM to prioritise lateral alignment over advance.
+  \item \textbf{PID approach} ($d \leq 800$\,mm): The \texttt{pid\_forward} output overrides the open-loop cruise speed.
+  \item \textbf{Blind-zone relay}: When visual tracking is lost ($e_x$ unavailable) but both $d < 450$\,mm and last-valid distance $d_{\text{last}} < 300$\,mm, the chassis maintains a straight 30\,RPM advance with zero turn command. This bridges the camera forward-mount dead zone.
+  \item \textbf{Ingestion trigger} ($d \leq 200$\,mm): Motors pre-spin, chassis advances at fixed 30\,RPM. The system transitions to the ingestion confirmation window.
+\end{enumerate}
+
+The blind-zone relay condition is formalised as:
+
+\begin{equation}
+\neg \texttt{target\_valid} \;\land\; (d < 450) \;\land\; (d_{\text{last}} < 300)
+\label{eq:blind_zone}
+\end{equation}
+
+\paragraph{Ingestion Confirmation.}
+Ingestion is confirmed via a sliding-window majority vote on the distance sensor:
+
+\begin{equation}
+\texttt{is\_swallowed} = \left( \sum_{k=1}^{10} \mathbf{1}[d(t + k \cdot 20\,\text{ms}) > 250] \right) \geq 10
+\label{eq:swallow_check}
+\end{equation}
+
+i.e., 10 consecutive readings exceeding 250\,mm within a 200\,ms window, protected by a 3-second hard timeout.
+
+% ============================================================
+\subsection{Navigation \& Planning Theory}
+\label{sec:theory_nav}
+
+\subsubsection{SLAM (slam\_toolbox)}
+
+The system employs \texttt{slam\_toolbox} in Online Asynchronous mode for Simultaneous Localisation and Mapping. The algorithm is built on a sparse pose-graph:
+
+\begin{itemize}
+  \item \textbf{Nodes} represent robot poses $(x_i, y_i, \theta_i)$ at key scan timestamps.
+  \item \textbf{Edges} encode spatial constraints: odometry edges (from wheel odometry) and scan-matching edges (from LiDAR scan alignment).
+  \item \textbf{Scan matching} uses Karto-style correlative scan matchers (multi-resolution search over $(x, y, \theta)$) to align incoming LiDAR scans against the accumulated occupancy grid.
+  \item \textbf{Global optimisation}: The pose-graph is periodically optimised via non-linear least squares, minimising:
+    \begin{equation}
+    \mathbf{X}^* = \arg\min_{\mathbf{X}} \sum_{i,j} \mathbf{e}_{ij}^T \mathbf{\Omega}_{ij} \mathbf{e}_{ij}
+    \end{equation}
+    where $\mathbf{e}_{ij}$ is the constraint error between nodes $i$ and $j$ and $\mathbf{\Omega}_{ij}$ is the information matrix.
+  \item \textbf{Loop closure}: Upon revisiting a previously mapped region, additional scan-matching constraints are added and the full graph is re-optimised.
+\end{itemize}
+
+The resulting map is a 2D occupancy grid, where each cell stores the log-odds $l_{x,y}$ of being occupied:
+
+\begin{equation}
+p(\text{occupied} \mid z_{1:t}) = 1 - \frac{1}{1 + \exp(l_{x,y})}
+\end{equation}
+
+\subsubsection{AMCL Localisation}
+
+Adaptive Monte Carlo Localisation (AMCL) estimates the robot pose $\mathbf{x}_t = (x, y, \theta)_t$ through a particle filter:
+
+\begin{enumerate}
+  \item \textbf{Prediction}: Each particle is propagated by sampling from the motion model $p(\mathbf{x}_t \mid \mathbf{x}_{t-1}, \mathbf{u}_{t-1})$ using wheel odometry.
+  \item \textbf{Update}: Each particle's weight is updated by the measurement model $p(\mathbf{z}_t \mid \mathbf{x}_t, m)$ using LiDAR scan likelihood against the pre-built map $m$.
+  \item \textbf{Resampling}: Particles are resampled proportionally to weights (KLD-sampling for adaptive particle count).
+\end{enumerate}
+
+\subsubsection{Smac Hybrid-A* Global Planner}
+
+Nav2 employs the Smac Hybrid-A* planner, which extends classical A* search to a continuous state space. The hybrid state $\mathbf{s} = (x, y, \theta)$ is evaluated with:
+
+\begin{equation}
+f(\mathbf{s}) = g(\mathbf{s}) + h(\mathbf{s})
+\end{equation}
+
+where $g(\mathbf{s})$ is the accumulated cost-to-come (including penalties for proximity to obstacles and non-smooth transitions) and $h(\mathbf{s})$ is an admissible heuristic (typically a 2D Euclidean distance with obstacle-awareness). The continuous-state feasibility check ensures that generated states satisfy the robot's kinematic constraints (minimum turning radius).
+
+\subsubsection{Regulated Pure Pursuit Local Controller}
+
+The Regulated Pure Pursuit (RPP) controller computes angular velocity $\omega$ from a look-ahead point $(x_l, y_l)$ on the global path:
+
+\begin{equation}
+\omega = \frac{2 v \sin(\alpha)}{L_d}
+\end{equation}
+
+where $v$ is the current linear velocity, $\alpha$ is the angle between the robot's heading and the look-ahead point, and $L_d$ is the adaptive look-ahead distance. The regulation heuristics include velocity scaling near the goal, collision checking on the look-ahead arc, and curvature-based deceleration.
+
+\subsubsection{Boustrophedon Coverage Path}
+
+The workspace coverage strategy generates an S-shaped (boustrophedon) path through all traversable grid cells. Given a calibrated workspace $\mathcal{W}$ discretised into cells of dimension $\Delta x \times \Delta y$ (matching the intake mechanism width), the path comprises alternating horizontal sweeps:
+
+\begin{equation}
+\mathcal{P}_{\text{coverage}} = \big\{ \mathbf{w}_k \in \mathcal{W}_{\text{traversable}} \;\big|\; k = 1,\dots,N \big\}
+\end{equation}
+
+Grid cells are classified into one of four states:
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{Grid Cell State Classification}
+  \label{tab:grid_states}
+  \begin{tabular}{@{}lcp{6cm}@{}}
+    \toprule
+    \textbf{State}   & \textbf{Symbol} & \textbf{Semantics} \\
+    \midrule
+    Occupied    & $\blacksquare$ & Static obstacle (unreachable)           \\
+    Traversable & $\square$       & Free space, not yet visited             \\
+    Cleared     & $\checkmark$    & Cell has been swept, no ball remaining  \\
+    Target      & $\bullet$       & Ball detected via YOLO in this cell     \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ============================================================
+\subsection{Finite State Machine}
+\label{sec:theory_fsm}
+
+The behavioural logic of the CourtSweeper is formally defined as a Mealy-type Finite State Machine (FSM).
+
+\paragraph{Formal Definition.}
+\begin{equation}
+\mathcal{M} = (Q, \Sigma, \delta, q_0, F)
+\end{equation}
+
+where:
+\begin{itemize}
+  \item $Q = \{q_0, q_1, q_2, q_3\}$ is the finite set of states.
+  \item $\Sigma$ is the input alphabet of events (perception events, sensor thresholds, timer expirations, and UI commands).
+  \item $\delta: Q \times \Sigma \to Q$ is the transition function.
+  \item $q_0 = \texttt{IDLE}$ is the initial state.
+  \item $F = \emptyset$ (no terminal states; the FSM runs indefinitely).
+\end{itemize}
+
+% The state definations, events that FSM responds to, and transition functions are in table \ref{tab:fsm_states}, \ref{tab:fsm_events} and \ref{tab:fsm_transitions}.
+\subsubsection{State Definitions}
+
+\begin{table}[H]
+  \footnotesize
+  \centering
+  \caption{FSM State Set}
+  \label{tab:fsm_states}
+  \begin{tabular}{@{}cclp{7cm}@{}}
+    \toprule
+    \textbf{ID} & \textbf{State} & \textbf{Symbol} & \textbf{Semantics} \\
+    \midrule
+    0 & IDLE      & $q_0$ & Awaiting command. Manual teleoperation overrides autonomy. Court calibration performed here. \\
+    1 & SEARCHING & $q_1$ & No ball detected. Chassis follows the pre-computed boustrophedon coverage path, marking traversed cells as cleared. \\
+    2 & TRACKING  & $q_2$ & Ball detected. Coverage path paused. Dual-PID controller aligns chassis with target and navigates toward projected map coordinates. \\
+    3 & INGESTING  & $q_3$ & Ball within 200\,mm. Roller motors pre-spin; chassis advances; sliding-window detector confirms ingestion. \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{Event Alphabet}
+
+The FSM responds to the following events:
+
+\begin{table}[H]
+  \footnotesize
+  \centering
+  \caption{FSM Input Events ($\Sigma$)}
+  \label{tab:fsm_events}
+  \begin{tabular}{@{}cll@{}}
+    \toprule
+    \textbf{Event} & \textbf{Symbol} & \textbf{Trigger Condition} \\
+    \midrule
+    Ball detected      & $e_{\text{detect}}$  & \texttt{target\_locked = True} (YOLO confidence $\geq 0.25$) \\
+    Ball lost          & $e_{\text{lost}}$    & \texttt{no\_ball\_counter $\geq 15$} (consecutive frames) \\
+    Approach threshold & $e_{\text{approach}}$ & $d_{\text{IR}} \leq 200$\,mm \\
+    Ball ingested      & $e_{\text{ingested}}$ & \texttt{is\_swallowed = True} (Eq.~\ref{eq:swallow_check}) \\
+    Ingestion timeout  & $e_{\text{timeout}}$  & Elapsed 3\,s without ingestion confirmation \\
+    Coverage complete  & $e_{\text{done}}$     & All traversable cells marked cleared \\
+    Auto mode          & $e_{\text{auto}}$     & UI AUTO switch toggled \\
+    Manual override    & $e_{\text{manual}}$   & UI MANUAL switch toggled or teleop input received \\
+    E-STOP             & $e_{\text{estop}}$    & UI E-STOP button pressed \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{Transition Function}
+
+\begin{table}[H]
+  \footnotesize
+  \centering
+  \caption{FSM Transition Table $\delta: Q \times \Sigma \to Q$}
+  \label{tab:fsm_transitions}
+  \begin{tabular}{@{}ccl@{}}
+    \toprule
+    \textbf{From} & \textbf{Event}      & \textbf{To} \\
+    \midrule
+    IDLE      & $e_{\text{auto}}$        & SEARCHING   \\
+    IDLE      & $e_{\text{detect}}$      & TRACKING    \\
+    SEARCHING & $e_{\text{detect}}$      & TRACKING    \\
+    SEARCHING & $e_{\text{done}}$        & IDLE        \\
+    TRACKING  & $e_{\text{lost}}$        & SEARCHING   \\
+    TRACKING  & $e_{\text{approach}}$    & INGESTING   \\
+    INGESTING  & $e_{\text{ingested}}$    & SEARCHING   \\
+    INGESTING  & $e_{\text{timeout}}$     & SEARCHING   \\
+    Any       & $e_{\text{manual}}$      & IDLE        \\
+    Any       & $e_{\text{estop}}$        & IDLE        \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ============================================================
+\subsection{Coordinate Transformations}
+\label{sec:theory_transforms}
+
+\subsubsection{Euler Angle to Quaternion}
+
+The robot operates on a planar surface; yaw $\theta$ is the only non-zero Euler angle. The conversion to quaternion representation follows the axis-angle formula for a Z-axis rotation:
+
+\begin{equation}
+\mathbf{q}(\theta) = (q_x, q_y, q_z, q_w) = \left(0,\; 0,\; \sin\frac{\theta}{2},\; \cos\frac{\theta}{2}\right)
+\label{eq:euler_to_quat}
+\end{equation}
+
+\subsubsection{Yaw Normalisation}
+
+To prevent numerical drift due to $\theta$ wrapping outside $[-\pi, \pi]$, the yaw is normalised using:
+
+\begin{equation}
+\theta' = \operatorname{atan2}\left(\sin\theta,\; \cos\theta\right)
+\label{eq:yaw_norm}
+\end{equation}
+
+\subsubsection{TF Coordinate Tree}
+
+The ROS2 TF tree defines the rigid transformations in fig.~\ref{tab:tf_tree}.
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{TF Frame Hierarchy}
+  \label{tab:tf_tree}
+  \begin{tabular}{@{}lcccccr@{}}
+    \toprule
+    \textbf{Parent Frame} & \textbf{Child Frame} & $\Delta x$ & $\Delta y$ & $\Delta z$ & $\Delta\theta$ & \textbf{Remarks} \\
+    \midrule
+    \texttt{odom}          & \texttt{base\_footprint} & SLAM estimate & SLAM estimate & 0 & SLAM estimate & AMCL-provided \\
+    \texttt{base\_footprint} & \texttt{base\_link}   & 0 & 0 & 0 & 0 & Static (coincident origins) \\
+    \texttt{base\_link}    & \texttt{laser}         & 0 & 0 & 0 & 0 & Static (LiDAR mount) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Coordinate Sign Convention.}
+\begin{itemize}
+  \item \textbf{Mapping mode} (\texttt{map\_generation.py}): Yaw and $x$-coordinate are negated ($\theta \to -\theta$, $x \to -x$) to align the DJI odometry frame with the SLAM map convention.
+  \item \textbf{Navigation mode} (\texttt{map\_navigation.py}): Raw DJI coordinates are preserved; the saved map already conforms to the localisation frame.
+\end{itemize}
+
+% ============================================================
+\subsection{Communication Protocol Specifications}
+\label{sec:theory_comms}
+
+\subsubsection{ROS2 Inter-Process Communication}
+
+\begin{table}[H]
+  \footnotesize
+  \centering
+  \caption{ROS2 Topic Specification}
+  \label{tab:ros_topics}
+  \begin{tabular}{@{}llccl@{}}
+    \toprule
+    \textbf{Topic}             & \textbf{Message Type}               & \textbf{Freq. (Hz)} & \textbf{Direction}   & \textbf{Remarks} \\
+    \midrule
+    \texttt{/odom}             & \texttt{nav\_msgs/Odometry}         & 50    & Chassis $\to$ ROS2  & DJI SDK telemetry \\
+    \texttt{/scan}             & \texttt{sensor\_msgs/LaserScan}     & $\sim$10 & LiDAR $\to$ ROS2    & RPLidar driver    \\
+    \texttt{/cmd\_vel}          & \texttt{geometry\_msgs/Twist}        & On demand & ROS2 $\to$ Chassis   & Nav2 output       \\
+    \texttt{/camera/image/compressed} & \texttt{sensor\_msgs/CompressedImage} & 10 & Chassis $\to$ ROS2  & JPEG, quality 60  \\
+    \texttt{/camera/camera\_info}     & \texttt{sensor\_msgs/CameraInfo}    & 10    & Chassis $\to$ ROS2  & Intrinsic calibration \\
+    \texttt{/tf}               & \texttt{tf2\_msgs/TFMessage}         & 50    & Bridge $\to$ ROS2   & Coordinate frames \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{UDP Control Protocol: iOS to Jetson}
+
+\begin{table}[H]
+  \footnotesize
+  \centering
+  \caption{UDP Command Packet Specification}
+  \label{tab:udp_spec}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    \textbf{Command} & \textbf{Payload Format} & \textbf{Semantics} \\
+    \midrule
+    E-STOP   & \texttt{\{"cmd": "estop"\}}     & Immediate chassis brake, suspend all autonomous logic \\
+    RECALL   & \texttt{\{"cmd": "recall"\}}    & Terminate mission, navigate to origin via Nav2 \\
+    AUTO     & \texttt{\{"cmd": "auto"\}}       & Switch FSM to autonomous mode \\
+    MANUAL   & \texttt{\{"cmd": "manual"\}}    & Switch FSM to manual teleoperation \\
+    JOYSTICK & \texttt{\{"vx": f, "vy": f, "vw": f\}} & Omnidirectional velocity command \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Transport Parameters.}
+
+\begin{table}[H]
+  \footnotesize
+  \centering
+  \caption{UDP Transport Parameters}
+  \label{tab:udp_params}
+  \begin{tabular}{@{}lclr@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Min.} & \textbf{Typical} & \textbf{Units} \\
+    \midrule
+    Serialisation        & --- & JSON    & ---  \\
+    Packet size (commands) & 30 & 80    & bytes \\
+    Target latency       & 5   & 15     & ms   \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{Serial Motor Protocol: Jetson to Arduino}
+
+\begin{table}[H]
+  \footnotesize
+  \centering
+  \caption{Serial Communication Parameters}
+  \label{tab:serial_spec}
+  \begin{tabular}{@{}lccccr@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Min.} & \textbf{Typical} & \textbf{Max.} & \textbf{Units} & \textbf{Remarks} \\
+    \midrule
+    Baud rate      & ---  & 115200 & ---  & bps  & 8N1 (8 data, 1 stop, no parity) \\
+    Packet format  & ---  & \texttt{"L,R\textbackslash n"} & --- & ---  & CSV-style, newline-terminated \\
+    Speed range    & -255 & ---    & +255 & ---  & 8-bit signed PWM \\
+    Encoding       & ---  & UTF-8  & ---  & ---  & \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{Wi-Fi Connection Modes}
+
+\begin{table}[H]
+  \footnotesize
+  \centering
+  \caption{Wi-Fi Operation Modes}
+  \label{tab:wifi_modes}
+  \begin{tabular}{@{}llp{7cm}@{}}
+    \toprule
+    \textbf{Mode} & \textbf{SDK Parameter} & \textbf{Use Case} \\
+    \midrule
+    Access Point (AP)  & \texttt{conn\_type="ap"}  & Direct iOS connection; Jetson broadcasts SSID for dataset collection and field teleop \\
+    Station (STA)      & \texttt{conn\_type="sta"} & Robot/Jetson joins existing Wi-Fi network for SLAM mapping and Nav2 navigation \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ============================================================
+\subsection{Motor Drive Theory}
+\label{sec:theory_motor}
+
+\subsubsection{PWM Duty Cycle Control}
+
+The Arduino firmware generates Pulse Width Modulation signals with 8-bit resolution. The duty cycle is:
+
+\begin{equation}
+D = \frac{|\texttt{speed}|}{255} \times 100\%
+\label{eq:pwm_duty}
+\end{equation}
+
+where $\texttt{speed} \in [-255, 255]$ is the signed command. The effective motor voltage is:
+
+\begin{equation}
+V_{\text{motor}} = D \cdot V_{\text{supply}} = D \cdot 11.1\,\text{V}
+\label{eq:motor_voltage}
+\end{equation}
+
+Pre-spin duty ($\texttt{speed} = 90$) corresponds to $D \approx 35\%$, yielding approximately $3.9\,$V across the 775 motor terminals.
+
+\subsubsection{BTS7960 H-Bridge Topology}
+
+Each BTS7960 driver module forms a full H-bridge using two half-bridge outputs. The three-wire interface operates as follows:
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{BTS7960 Logic Truth Table}
+  \label{tab:bts7960_truth}
+  \begin{tabular}{@{}ccccl@{}}
+    \toprule
+    \textbf{EN} & \textbf{RPWM} & \textbf{LPWM} & \textbf{Motor State} & \textbf{Condition} \\
+    \midrule
+    LOW  & 0     & 0     & Coast (free-running) & $\texttt{speed} = 0$ \\
+    HIGH & $|s|$ & 0     & Forward rotation     & $\texttt{speed} > 0$ \\
+    HIGH & 0     & $|s|$ & Reverse rotation     & $\texttt{speed} < 0$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The enable pin (EN) controls the H-bridge output stage: pulling it LOW disconnects both half-bridges, providing a passive coast-stop that prevents back-EMF-induced braking torque.
+
+\paragraph{Pin Mapping.}
+
+\begin{table}[!htb]
+  \footnotesize
+  \centering
+  \caption{Arduino Pin Assignment for Dual BTS7960 Drivers}
+  \label{tab:arduino_pins}
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    \textbf{Motor} & \textbf{EN} & \textbf{RPWM} & \textbf{LPWM} \\
+    \midrule
+    Left  & D4  & D5  & D6  \\
+    Right & D7  & D9  & D10 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{Communication Watchdog}
+
+A hardware-level safety mechanism is implemented in firmware:
+
+\begin{equation}
+\text{if } (\texttt{isMoving} \land (t_{\text{now}} - t_{\text{lastRecv}} > 500\,\text{ms})) \Rightarrow \text{stopMotor()}
+\label{eq:watchdog}
+\end{equation}
+
+If no serial command is received within 500\,ms while motors are in motion, all PWM channels are zeroed and the enable pins are pulled LOW. This prevents runaway behaviour in the event of communication loss (e.g., serial cable disconnection, Jetson crash, or software deadlock).
+
+\paragraph{Command Parsing.}
+The Arduino firmware uses \texttt{Serial.parseInt()} to extract signed integers from the CSV stream, validating each packet with a newline terminator check (\texttt{Serial.read() == '\textbackslash n'}). Incomplete or malformed packets are silently discarded, and the last valid speed values are retained.

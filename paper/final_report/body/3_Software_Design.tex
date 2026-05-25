@@ -67,7 +67,7 @@ ep_robot.set_robot_mode(mode="free")
 ep_chassis = ep_robot.chassis
 \end{minted}
 
-Velocity commands arriving via \texttt{/cmd\_vel} are converted to per-wheel RPM targets using the Mecanum differential mixing equations. A scaling factor of 100 maps the normalized Twist velocities to the chassis wheel-speed range:
+Velocity commands arriving via \texttt{/cmd\_vel} are converted to per-wheel RPM targets using the Mecanum differential mixing equations (see \S\ref{sec:theory_kinematics} for the kinematic derivation). A scaling factor of 100 maps the normalized Twist velocities to the chassis wheel-speed range:
 
 \begin{minted}{python}
 def cmd_vel_callback(self, message):
@@ -91,7 +91,7 @@ A 300\,ms communication watchdog is enforced: if no \texttt{/cmd\_vel} message a
 \subsection{SLAM-Based Mapping Pipeline}
 \label{sec:slam}
 
-The first phase of autonomous operation constructs a 2D occupancy grid map of the tennis court. The mapping pipeline integrates an RPLidar A1M8, the \texttt{slam\_toolbox} ROS2 package, and a custom bridge node.
+The first phase of autonomous operation constructs a 2D occupancy grid map of the tennis court (theoretical principles in \S\ref{sec:theory_nav}). The mapping pipeline integrates an RPLidar A1M8, the \texttt{slam\_toolbox} ROS2 package, and a custom bridge node.
 
 \subsubsection{RoboMaster Chassis Bridge (map\_generation.py)}
 \label{sec:map_generation}
@@ -153,7 +153,7 @@ ros2 run nav2_map_server map_saver_cli -f custom_court
 \subsection{Nav2-Based Autonomous Navigation}
 \label{sec:nav2}
 
-Once the occupancy grid map is saved, the system transitions to autonomous navigation using the \textbf{Nav2} (Navigation2) framework. Nav2 provides AMCL-based localization, a global planner, a local controller, and behavior-tree-driven mission execution.
+Once the occupancy grid map is saved, the system transitions to autonomous navigation using the \textbf{Nav2} (Navigation2) framework (algorithmic details in \S\ref{sec:theory_nav}). Nav2 provides AMCL-based localization, a global planner, a local controller, and behavior-tree-driven mission execution.
 
 \subsubsection{Localization and Planning}
 
@@ -235,7 +235,7 @@ The detection output drives the chassis alignment controller via the horizontal 
 \subsection{Hierarchical Finite State Machine Design}
 \label{sec:event-recognition}
 
-The robot's behavioral logic is governed by a two-layer hierarchical Finite State Machine, illustrated in Figure~\ref{fig:workflow}. The upper layer handles iOS-originated interrupt commands with unconditional priority; the lower layer executes the autonomous mission workflow.
+The robot's behavioral logic is governed by a two-layer hierarchical Finite State Machine (formal definition in \S\ref{sec:theory_fsm}), illustrated in Figure~\ref{fig:workflow}. The upper layer handles iOS-originated interrupt commands with unconditional priority; the lower layer executes the autonomous mission workflow.
 
 \begin{figure}[!htb]
   \centering

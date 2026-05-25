@@ -86,7 +86,7 @@ To achieve reliable and rapid ball collection, a custom dual-roller intake mecha
 
 \subsection{LiDAR Sensor Setup}
 \label{sec:lidar}
-To ensure precise operational boundary gridding and efficient path planning (as outlined in the software architecture~Fig.\ref{fig:fsm_overview}), the Courtsweeper incorporates a dedicated 2D LiDAR sensor. Based on a triangulation principle, this sensor provides robust 2D scanning of the court environment and potential obstacles.
+To ensure precise operational boundary gridding and efficient path planning (as outlined in the software architecture~Fig.\ref{fig:fsm_overview}), the Courtsweeper incorporates a dedicated 2D LiDAR sensor. This sensor provides robust 2D scanning of the court environment and potential obstacles (see \S\ref{sec:theory_perception} for the operating principle).
 
 \begin{itemize}
   \item \textbf{Sensor Details:} The selected hardware is the YDLIDAR X3-YB-1 triangulation-based LiDAR. It is mounted at the rear of the chassis and interfaces with the Jetson Orin NX via a customized USB-serial connection.

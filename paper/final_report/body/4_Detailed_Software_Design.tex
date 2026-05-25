@@ -7,7 +7,7 @@
 \subsection{Computer Vision \& Object Detection Module}
 \label{sec:cv}
 
-This module is the core perception layer of the CourtSweeper system, responsible for real-time video frame capture, tennis ball target detection, and providing pixel-space coordinate offset to the downstream motion control module. The system is built on the YOLO (You Only Look Once) deep learning object detection framework, supports multi-platform deployment (macOS, Linux/Jetson), and is optimized with TensorRT acceleration for embedded edge computing scenarios.
+This module is the core perception layer of the CourtSweeper system, responsible for real-time video frame capture, tennis ball target detection, and providing pixel-space coordinate offset to the downstream motion control module. The system is built on the YOLO (You Only Look Once) deep learning object detection framework, supports multi-platform deployment (macOS, Linux/Jetson), and is optimized with TensorRT acceleration for embedded edge computing scenarios. Theoretical foundations --- including the camera pinhole model, IBVS error, YOLO architecture and loss functions, and LiDAR triangulation --- are presented in \S\ref{sec:theory_perception}.
 
 \subsubsection{Module Architecture}
 \label{sec:cv:arch}
@@ -299,7 +299,7 @@ The CourtSweeper computer vision module utilizes the YOLO deep learning framewor
 \subsection{Intake Motor Control Module}
 \label{sec:motor}
 
-The intake motor control module is the critical actuation unit of the CourtSweeper system. It is responsible for driving the dual-roller mechanical structure to ingest the ball into the onboard storage bay once the vision system has locked onto a tennis ball target. This module spans both low-level hardware driving and high-level decision logic, forming a complete control chain from signal generation to intelligent triggering.
+The intake motor control module is the critical actuation unit of the CourtSweeper system. It is responsible for driving the dual-roller mechanical structure to ingest the ball into the onboard storage bay once the vision system has locked onto a tennis ball target. This module spans both low-level hardware driving and high-level decision logic, forming a complete control chain from signal generation to intelligent triggering. The underlying PWM theory, BTS7960 H-bridge topology, and watchdog mechanism are formalised in \S\ref{sec:theory_motor}.
 
 \subsubsection{Hardware Driver Architecture}
 \label{sec:motor_hw}
@@ -479,7 +479,7 @@ If the rotation completes with no further detections, the system determines that
 % ============================================================
 \subsection{Proximity-Based Chassis Navigation Module}
 \label{sec:chassis}
-This module combines real-time proximity sensing with a closed-loop PID chassis controller, responsible for executing the reactive retrieval stage of ball capture: alignment, approach, and physical ingestion. It bridges the visual perception pipeline (Section~\ref{sec:cv}) with the intake motor actuator (Section~\ref{sec:motor}) through the phase-3 reactive control logic of the hierarchical FSM (Section~\ref{sec:event-recognition}), simultaneously fusing two independent data streams — the image-plane centroid offset from the YOLO detector, and millimeter-resolution distance readings from the RoboMaster EP's onboard infrared sensor.
+This module combines real-time proximity sensing with a closed-loop PID chassis controller, responsible for executing the reactive retrieval stage of ball capture: alignment, approach, and physical ingestion. It bridges the visual perception pipeline (Section~\ref{sec:cv}) with the intake motor actuator (Section~\ref{sec:motor}) through the phase-3 reactive control logic of the hierarchical FSM (Section~\ref{sec:event-recognition}), simultaneously fusing two independent data streams — the image-plane centroid offset from the YOLO detector, and millimeter-resolution distance readings from the RoboMaster EP's onboard infrared sensor. The Mecanum kinematics, dual-PID control laws, and blind-zone relay logic are derived in the Theoretical Manual (\S\ref{sec:theory_kinematics}--\S\ref{sec:theory_pid}).
 
 % ------------------------------------------------------------
 \subsubsection{Distance Sensing Submodule}
