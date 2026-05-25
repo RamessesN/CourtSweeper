@@ -1,7 +1,11 @@
 \documentclass[12pt,a4paper]{article}
 
 \usepackage[
-  left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm
+  left=2.5cm, right=2.5cm,
+  top=1.0cm, bottom=2.5cm,
+  headheight=54pt,
+  includehead,
+  includefoot
 ]{geometry}
 
 \usepackage{newtxtext} % useful in pdfLaTeX
@@ -10,6 +14,7 @@
 % \usepackage{ctex} % Chinese support (XeLaTeX, auto-loads fontspec)
 % \setmainfont{Times New Roman} % useful only in XeLaTeX
 
+\usepackage{rotating}
 \usepackage{tabularx}
 \usepackage{longtable}
 \usepackage{multirow}
@@ -94,7 +99,7 @@
 \renewcommand{\contentsname}{\centerline{\bfseries Table of Contents}\vspace*{-1cm}}
 
 % Header/Footer Configuration
-\setlength{\headheight}{54pt}
+% \setlength{\headheight}{54pt}
 \pagestyle{fancy}
 \fancyhf{}
 \fancyfoot[C]{\thepage}
@@ -180,5 +185,6 @@
 \input{body/3_Software_Design} \clearpage
 \input{body/4_Detailed_Software_Design}\clearpage
 \input{body/5_User_Interface} \clearpage
+\input{body/6_Theoretical_Manual} \clearpage
 
 \end{document}
