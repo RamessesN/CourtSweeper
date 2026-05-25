@@ -154,25 +154,36 @@ Provides the physical and electrical blueprint of the robot. It details the inte
 \hline
 
 % ================= Software =================
-\textbf{Section \ref{sec:software}} \newline \textit{Software Design}
+\textbf{Section \ref{sec:software}} \newline \textit{Autonomous Navigation \& System Architecture}
 & 
-\textbullet~DJI SDK Integration \newline
-\textbullet~Video Pre-processing \newline
-\textbullet~YOLO and OpenCV Pipeline \newline
-\textbullet~FSM-Based Control Logic \newline
-\textbullet~Class Design \& Architecture
+\textbullet~ROS2-Based SLAM Mapping \newline
+\textbullet~Nav2 Autonomous Navigation \newline
+\textbullet~Hierarchical FSM Design \newline
+\textbullet~Class Architecture
 & 
-Describes the overarching onboard AI architecture. It breaks down the integration of the custom SDK for chassis navigation, the computer vision pipeline for target detection, and the finite state machine governing the intake motors. \\
+Describes the overarching system architecture and autonomous navigation pipeline. It details the ROS2 middleware layer bridging DJI hardware with SLAM and Nav2, the hierarchical two-layer FSM governing mission execution, and the modular class design. \\
+\hline
+
+% ================= Detailed Software =================
+\textbf{Section \ref{sec:detailed_software}} \newline \textit{Perception \& Reactive Control}
+& 
+\textbullet~YOLO Computer Vision Pipeline \newline
+\textbullet~Intake Motor Control \newline
+\textbullet~Chassis PID Navigation \newline
+\textbullet~Post-Ingestion Sector Sweep
+& 
+Provides the in-depth implementation of the perception and reactive control layer. It covers dataset collection, model training, and real-time YOLO inference; the dual-roller motor firmware and ingestion trigger FSM; the dual-PID chassis controller with blind-zone relay; and the post-ingestion 360-degree sector clearing logic. \\
 \hline
 
 % ================= UI =================
 \textbf{Section \ref{sec:ui_design}} \newline \textit{UI Design}
 & 
 \textbullet~Main Dashboard \& Video HUD \newline
-\textbullet~Teleoperation \& Control Panel \newline
+\textbullet~iOS Interrupt Command Panel \newline
 \textbullet~Telemetry \& Log Console
 & 
-Outlines the Swift-based iOS application architecture, detailing the visual presentation layer, network socket communication, and real-time system monitoring protocols. \\
+Outlines the Swift-based iOS application architecture, detailing the MJPEG video presentation layer, the upper-FSM interrupt controls (E-Stop and Recall), and real-time system telemetry monitoring. \\
+\hline
 
 \end{longtable}
 }

@@ -1,4 +1,4 @@
-\ieeesection[DETAILED SOFTWARE DESIGN]{DETAILED SOFTWARE DESIGN}
+\ieeesection[Software Design: Perception and Reactive Control]{Software Design: Perception and Reactive Control}
 \label{sec:detailed_software}
 
 \textcolor{gray}{\rule{\linewidth}{3pt}}
@@ -470,11 +470,16 @@ if intake_motor:
 
 Additionally, the system implements a blind-zone relay logic: when the ball distance has already been reduced to within 300\,mm but the visual target is briefly lost (with the distance sensor still reading within the valid 450\,mm range), the chassis maintains straight forward advance without immediately aborting the chasing sequence. This mechanism effectively compensates for the visual blind zone caused by the camera's limited field of view at close range, improving the success rate of near-field ingestion.
 
+\paragraph{Post-Ingestion Sector Sweep and FSM Re-Entry}
+
+Following a confirmed ball ingestion, the system does not immediately resume waypoint navigation. Instead, it executes a $360^\circ$ in-place rotational scan at a fixed angular velocity (30\,RPM) to check whether additional tennis balls remain within the current court sector. During the rotation, the YOLO pipeline runs continuously: if a new ball is detected, the chasing sequence re-engages, pulling execution back to the visual servoing phase. This looping mechanism ensures that all balls within a local sector are retrieved before the robot moves on, avoiding expensive back-and-forth navigation.
+
+If the rotation completes with no further detections, the system determines that the current sector has been fully cleared. The sector status is updated in the global ball-coordinate database, and control returns to the main FSM. The FSM then dispatches the next waypoint from the Nav2 coverage path (or triggers a recall if all waypoints have been visited), as described in the hierarchical FSM design in Section~\ref{sec:event-recognition}.
 
 % ============================================================
 \subsection{Proximity-Based Chassis Navigation Module}
 \label{sec:chassis}
-This module combines real-time proximity sensing with a closed-loop PID chassis controller, responsible for executing the final stage of ball retrieval: alignment, approach, and physical ingestion. It connects the visual perception pipeline (Section 3.1.6) with the intake actuator (Section 3.X) through a tightly coupled state machine, simultaneously fusing two independent data streams — the image-plane centroid offset from the YOLO detector, and millimeter-resolution distance readings from the RoboMaster EP's onboard infrared sensor.
+This module combines real-time proximity sensing with a closed-loop PID chassis controller, responsible for executing the reactive retrieval stage of ball capture: alignment, approach, and physical ingestion. It bridges the visual perception pipeline (Section~\ref{sec:cv}) with the intake motor actuator (Section~\ref{sec:motor}) through the phase-3 reactive control logic of the hierarchical FSM (Section~\ref{sec:event-recognition}), simultaneously fusing two independent data streams — the image-plane centroid offset from the YOLO detector, and millimeter-resolution distance readings from the RoboMaster EP's onboard infrared sensor.
 
 % ------------------------------------------------------------
 \subsubsection{Distance Sensing Submodule}
