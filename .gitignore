@@ -210,3 +210,6 @@ __marimo__/
 src/vision/training/dataset/*
 
 paper/final_report/.gitignore
+
+# MacOS
+.DS_Store
