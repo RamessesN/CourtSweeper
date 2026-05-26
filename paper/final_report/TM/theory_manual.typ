@@ -1,7 +1,7 @@
 #set text(size: 14pt)
 
 #set page(footer: context [
-  *Court Sweeper*
+  *CourtSweeper*
   #h(1fr)
   #counter(page).display(
     "1/1",
@@ -10,7 +10,7 @@
 ])
 
 #set heading(numbering: "1.")
-#show heading: set text(blue)
+#show heading: set text(rgb("#005dae"))
 
 #set table(
   stroke: (x, y) => {
@@ -22,7 +22,7 @@
     (bottom: 0.5pt)
   },
   // gutter: 0.2em,
-  fill: (x, y) => if y == 0 { blue },
+  fill: (x, y) => if y == 0 { rgb("#005dae") },
   inset: (left: 0.5em, right: 0.5em),
 )
 
@@ -39,7 +39,7 @@
   }
 }
 
-#show figure.caption: set text(blue)
+#show figure.caption: set text(rgb("#005dae"))
 #show figure.where(
   kind: table,
 ): set figure.caption(position: top)
