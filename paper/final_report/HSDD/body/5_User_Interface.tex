@@ -6,7 +6,7 @@
 
 This section describes the user interface design of the CourtSweeper iOS application. Developed natively in Swift using the SwiftUI framework, the mobile application serves as the primary remote command center and implements the \textbf{iOS Interrupt Control Layer} of the hierarchical FSM (Section~\ref{sec:event-recognition}). It connects directly to the Jetson Orin NX's localized Wi-Fi hotspot, providing real-time situational awareness, manual teleoperation capabilities, high-priority interrupt commands, and system telemetry monitoring.
 
-\begin{figure}[htbp]
+\begin{figure}[!htb]
   \centering
   \includegraphics[width=0.8\textwidth]{figures/fig_ui.pdf}
   \caption{The software architecture and data flow for the CourtSweeper iOS application, illustrating the centralized SwiftUI core connected via bidirectional Wi-Fi and UDP sockets to external Jetson computing units, and featuring functional breakdowns of main dashboard, teleoperation, and telemetry modules.}
@@ -18,9 +18,18 @@ This section describes the user interface design of the CourtSweeper iOS applica
 \label{sec:main-interface}
 The primary interface is designed as a landscape-oriented Heads-Up Display (HUD) to maximize the operator's field of view. The core component of this view is the video presentation layer.
 
-\begin{figure}[htbp]
+\begin{figure}[!htb]
   \centering
-  \includegraphics[width=0.75\textwidth]{figures/iOS_app.png}
+  \begin{minipage}{0.45\linewidth}
+    \centering
+    \includegraphics[height=216pt]{figures/app_vision}
+  \end{minipage}
+  % \hfill
+  \begin{minipage}{0.45\linewidth}
+    \centering
+    \includegraphics[height=216pt]{figures/app_map}
+  \end{minipage}
+  % \includegraphics[width=0.75\textwidth]{figures/iOS_app.png}
   \caption{User interface layout of the CourtSweeper iOS application. The primary HUD renders the low-latency MJPEG video stream overlaid with real-time YOLO bounding boxes. The lower panel provides virtual joysticks for holonomic teleoperation and manual override switches for the system's Finite State Machine (FSM).}
   \label{fig_hud}
 \end{figure}
