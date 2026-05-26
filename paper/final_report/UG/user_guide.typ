@@ -1,9 +1,9 @@
 #set text(size: 14pt)
 
 #set document(
-  title: [CourtSweeper Mstr],
+  title: [CourtSweeper],
 )
-#show title: it => align(left, text(54pt, luma(33.3%))[#it])
+#show title: it => align(left, text(60pt, luma(33.3%))[#it])
 
 #set page(footer: context [
   *CourtSweeper*
