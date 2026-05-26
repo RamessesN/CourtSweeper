@@ -1,8 +1,9 @@
 #set text(size: 14pt)
 
 #set document(
-  title: [CourtSweeper User Guide],
+  title: [Court Sweeper],
 )
+#show title: it => align(left, text(60pt, weight: "bold", luma(33.3%))[#it])
 
 #set page(footer: context [
   *Court Sweeper*
@@ -43,6 +44,8 @@
   kind: table,
 ): set block(breakable: true)
 
+#show link: set text(blue)
+
 // Display inline code in a small box
 // that retains the correct baseline.
 #show raw.where(block: false): box.with(
@@ -64,17 +67,25 @@
   )
 }
 
-#v(1fr)
-
 #title()
 
 #v(1fr)
 
+#text(24pt, gray)[
+  User Guide v1.2
+]
+
+#text(18pt, gray)[
+  2026.05
+]
+
+#v(2fr)
+
 #figure(
-  image("figures/fig_chassis.pdf", width: 80%),
+  image("figures/title.png", width: 60%),
 )
 
-#v(1fr)
+#v(2fr)
 
 #pagebreak()
 
@@ -111,35 +122,20 @@ CourtSweeper ships as a kit of disassembled parts. Upon unboxing, please verify 
     columns: (1fr, auto, 1fr),
     align: center + horizon,
     table.header([Part No.], [Component], [Qty]),
-    table.hline(stroke: 0.5pt),
     [A01], [DJI RoboMaster EP chassis (incl. Mecanum wheels ×4)], [1],
-    table.hline(stroke: 0.5pt),
     [A02], [DJI EP Intelligent Battery (3S LiPo, 10.8V, 2400mAh)], [1],
-    table.hline(stroke: 0.5pt),
     [A03], [RoboMaster EP HD camera (integrated)], [1],
-    table.hline(stroke: 0.5pt),
     [B01], [NVIDIA Jetson Orin NX (incl. power adapter)], [1],
-    table.hline(stroke: 0.5pt),
-    [B02], [YDLIDAR X3-YB-1 (incl. USB-serial cable)], [1],
-    table.hline(stroke: 0.5pt),
+    [B02], [RPLidar A1M8 (incl. USB-serial cable)], [1],
     [B03], [Arduino UNO + USB-B data cable], [1],
-    table.hline(stroke: 0.5pt),
     [C01], [775 D-shaft DC motor], [2],
-    table.hline(stroke: 0.5pt),
     [C02], [BTS7960 high-current motor driver module], [2],
-    table.hline(stroke: 0.5pt),
     [C03], [3S LiPo battery (11.1V, 5200mAh, 40C)], [1],
-    table.hline(stroke: 0.5pt),
     [C04], [Low-voltage buzzer BX100], [1],
-    table.hline(stroke: 0.5pt),
     [D01], [60mm rubber friction wheel (D-bore)], [2],
-    table.hline(stroke: 0.5pt),
     [D02], [30mm extended brass coupling], [2],
-    table.hline(stroke: 0.5pt),
     [D03], [Dual-roller mounting bracket (incl. screws)], [1],
-    table.hline(stroke: 0.5pt),
     [E01], [Dupont wire set (male-to-female, various)], [1],
-    table.hline(stroke: 0.5pt),
     [E02], [XT60 power cable / terminal block], [1],
   ),
   caption: [Bill of Materials],
@@ -180,7 +176,7 @@ The intake mechanism is the core mechanical subsystem of CourtSweeper, consistin
 *Step 2.2 --- Wheel installation.* Press the 60mm rubber friction wheel onto the opposite D-bore of each coupling and tighten the set screw to secure.
 
 #figure(
-  image("figures/fig_dual_roller.pdf", width: 60%),
+  image("figures/front.jpg", width: 60%),
   caption: [Front view of the dual-roller intake mechanism],
 )
 
@@ -225,22 +221,34 @@ The BTS7960 driver modules require connections to both the Arduino UNO logic pin
   caption: [EP chassis battery and 3S LiPo motor battery],
 )
 
-== LiDAR Installation
+== LiDAR & Jetson Orin NX Installation
 
-Secure the YDLIDAR X3-YB-1 to the rear upper mounting bracket of the chassis using screws. Connect the USB-serial adapter cable to an available USB port on the Jetson Orin NX.
-
-#figure(
-  image("figures/fig_lidar.pdf", width: 40%),
-  caption: [YDLIDAR X3-YB-1 sensor],
-)
-
-== Jetson Orin NX Installation
+Secure the RPLidar A1M8 to the rear upper mounting bracket of the chassis using screws. Connect the USB-serial adapter cable to an available USB port on the Jetson Orin NX.
 
 Mount the Jetson Orin NX module on the mid-deck of the chassis using screws or cable ties. Connect the 19V power adapter to the Jetson DC power jack.
 
-#figure(
-  image("figures/fig_jetson.pdf", width: 55%),
-  caption: [NVIDIA Jetson Orin NX edge computing unit],
+// #figure(
+//   image("figures/fig_lidar.pdf", width: 40%),
+//   caption: [RPLidar A1M8 sensor],
+// )
+
+// #figure(
+//   image("figures/fig_jetson.pdf", width: 55%),
+//   caption: [NVIDIA Jetson Orin NX edge computing unit],
+// )
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 1em,
+  align: bottom,
+  [
+    #image("figures/fig_lidar.pdf", width: 60%)
+    #align(center, text(0.8em)[RPLidar A1M8 sensor])
+  ],
+  [
+    #image("figures/fig_jetson.pdf", width: 80%)
+    #align(center, text(0.8em)[NVIDIA Jetson Orin NX edge computing unit])
+  ],
 )
 
 == Power Distribution Topology
@@ -292,10 +300,10 @@ This chapter is for users who want to operate the robot out of the box. Followin
 
 Open the App Store on your iPhone or iPad, search for *"CourtSweeper"*, and install the official app.
 
-#figure(
-  image("figures/iOS_app.png", width: 75%),
-  caption: [CourtSweeper iOS app main interface],
-)
+// #figure(
+//   image("figures/iOS_app.png", width: 75%),
+//   caption: [CourtSweeper iOS app main interface],
+// )
 
 == Connect to the Robot
 
@@ -399,7 +407,7 @@ ros2 run demo_nodes_cpp talker
 == Clone the CourtSweeper Repository
 
 ```bash
-git clone https://github.com/your-org/CourtSweeper.git ~/CourtSweeper
+git clone https://github.com/RamessesN/CourtSweeper.git ~/CourtSweeper
 cd ~/CourtSweeper
 ```
 
@@ -424,9 +432,11 @@ pip install --break-system-packages robomaster-sdk-ultra
 pip install --break-system-packages transforms3d
 ```
 
+`robomaster-sdk-ultra` (#link("https://github.com/RamessesN/Robomaster-SDK-Ultra")) is a community-maintained fork of the official DJI RoboMaster SDK, updated for compatibility with Python 3.10+ on modern JetPack releases. The official SDK has not received updates since 2021 and does not support Python ≥ 3.9.
+
 == RoboMaster-SDK-Ultra Configuration
 
-`robomaster-sdk-ultra` is CourtSweeper's high-performance Python SDK encapsulating all EP chassis communication. The Wi-Fi connection mode must be specified during initialisation:
+`robomaster-sdk-ultra` (#link("https://github.com/RamessesN/Robomaster-SDK-Ultra")) is CourtSweeper's high-performance Python SDK encapsulating all EP chassis communication. The Wi-Fi connection mode must be specified during initialisation:
 
 + *AP mode:* The Jetson connects to the robot as a hotspot (used for iOS app direct connection and dataset collection).
 + *STA mode:* Both robot and Jetson connect to the same Wi-Fi router (used for SLAM mapping and autonomous navigation).
@@ -461,7 +471,7 @@ Wi-Fi mode summary:
 
 == Arduino Firmware Flashing
 
-The dual-roller intake motors are driven by the Arduino UNO via PWM. The firmware source is located at `src/roller/roller_setting.ino`.
+The dual-roller intake motors are driven by the Arduino UNO via PWM. The firmware source (#link("https://github.com/RamessesN/CourtSweeper/tree/main/src/roller")[`src/roller/roller_setting.ino`]) is located in the CourtSweeper repository.
 
 + Connect the Arduino UNO to the Jetson (or your laptop) via USB-B cable.
 + Install the Arduino IDE or CLI:
@@ -471,14 +481,14 @@ The dual-roller intake motors are driven by the Arduino UNO via PWM. The firmwar
 + Open `src/roller/roller_setting.ino`, select Tool → Port → `/dev/ttyUSB0` (or `/dev/ttyACM0`), and choose the `Arduino Uno` board.
 + Click "Upload" to flash the firmware.
 
-Firmware capabilities:
+Firmware capabilities (for full firmware design and driver code, see HSDD §4.2):
 + Receives CSV-formatted commands `"L,R\n"` via serial (115200 bps, 8N1)
 + Parses left/right wheel speeds (range -255 to 255) and outputs corresponding PWM
 + Built-in 500ms watchdog: halts all motors on communication loss
 
 == YOLO Model Training Pipeline
 
-CourtSweeper uses YOLOv6-Nano for tennis ball detection. If you need to retrain the model with your own dataset, follow these steps:
+CourtSweeper uses YOLOv6-Nano for tennis ball detection. For the complete training hyperparameters, loss functions, and model architecture, see HSDD §4.1 and the Theoretical Manual. The vision module source is at #link("https://github.com/RamessesN/CourtSweeper/tree/main/src/vision")[`src/vision/`]. If you need to retrain the model with your own dataset, follow these steps:
 
 *Step 1 --- Dataset collection.* Switch the robot to AP mode and run the collection tool:
 
@@ -553,7 +563,7 @@ The complete CourtSweeper operational workflow consists of three phases: power-o
 
 == SLAM Mapping
 
-For first use (or after changing venues), an environment map must be built. The mapping workflow is driven by `map_generation.py`.
+For first use (or after changing venues), an environment map must be built. The mapping workflow is driven by `map_generation.py` (#link("https://github.com/RamessesN/CourtSweeper/tree/main/ROS/map")). For the SLAM and Nav2 architecture design, see HSDD §3.
 
 + Configure the robot Wi-Fi to STA mode (both robot and Jetson connect to the same router).
 + Start mapping:
@@ -594,7 +604,7 @@ python src/../resource/map/map_navigation.py
 + Upon full coverage or receipt of a RECALL command, Nav2 plans the shortest path back to the origin.
 
 #figure(
-  image("figures/fig_drive.pdf", width: 80%),
+  image("figures/fig_workflow.pdf", width: 80%),
   caption: [CourtSweeper full operational workflow: SLAM mapping → Nav2 path planning → dual-PID tracking → roller ingestion],
 ) <fig:fsm>
 
@@ -670,73 +680,41 @@ The following table lists common issues encountered during CourtSweeper operatio
 <appendix>
 
 == Arduino Pin Mapping
-
-#figure(
-  table(
-    columns: (1fr, 1fr, 1fr, 1fr),
-    align: center + horizon,
-    table.header([Motor], [EN (Enable)], [RPWM (Forward)], [LPWM (Reverse)]),
-    [Left Motor], [D4], [D5], [D6],
-    [Right Motor], [D7], [D9], [D10],
-  ),
-  caption: [Arduino pin mapping (duplicated from @tab:arduino_pins)],
-)
+See @tab:arduino_pins in @assembly for the complete pin assignments.
 
 == UDP Control Commands (iOS → Jetson)
-
-#figure(
-  table(
-    columns: (2fr, 3fr, 5fr),
-    align: center + horizon,
-    table.header([Command], [JSON Payload], [Semantics]),
-    [E-STOP], [`{"cmd": "estop"}`], [Emergency stop: immediately brake, suspend all autonomous logic],
-    [RECALL], [`{"cmd": "recall"}`], [One-touch recall: abort mission, navigate back to origin],
-    [AUTO], [`{"cmd": "auto"}`], [Switch to autonomous mode],
-    [MANUAL], [`{"cmd": "manual"}`], [Switch to manual teleoperation mode],
-    [JOYSTICK], [`{"vx": f, "vy": f, "vw": f}`], [Omnidirectional velocity command (translation + rotation)],
-  ),
-  caption: [UDP control commands quick reference],
-) <tab:udp_appendix>
+The E-STOP, RECALL, AUTO, MANUAL, and JOYSTICK commands are described in @quickstart. The full UDP packet specification is available in the CourtSweeper Theoretical Manual.
 
 == Wi-Fi Mode Selection
-
-#figure(
-  table(
-    columns: (1fr, 1fr, 2fr),
-    align: center + horizon,
-    table.header([Mode], [SDK Parameter], [Use Case]),
-    [AP], [`conn_type="ap"`], [iOS direct connection, dataset collection, manual teleop],
-    [STA], [`conn_type="sta"`], [SLAM mapping, Nav2 autonomous navigation],
-  ),
-  caption: [Wi-Fi mode quick reference],
-)
+See @tab:wifi_modes in @dev for AP/STA mode descriptions and SDK parameters.
 
 == CourtSweeper Source Code Structure
 
-```text
-src/
-├── chassis/          # Dual-PID chassis controller + ingestion state machine
-│   └── chassis_ctrl.py
-├── roller/           # Arduino firmware + Jetson serial driver
-│   ├── roller_setting.ino
-│   └── roller_drive.py
-├── vision/           # YOLO inference + training + dataset collection
-│   ├── video_node.py
-│   ├── cv_config.py
-│   ├── training/
-│   │   ├── dataset_collect.py
-│   │   └── model_training.py
-│   └── mlmodel/
-│       └── pt2onnx.py
-├── lidar/            # RPLidar driver
-│   └── lidar_parse.py
-├── distance/         # IR distance sensor subscriber
-│   └── distance_sub.py
-└── env_config.py     # Global logging + debug configuration
-```
+#let repo = "https://github.com/RamessesN/CourtSweeper/tree/main"
+
+`src/` \
+├── #link(repo + "/src/chassis")[`chassis/`] \# Dual-PID chassis controller + ingestion state machine \
+│   └── chassis_ctrl.py \
+├── #link(repo + "/src/roller")[`roller/`] \# Arduino firmware + Jetson serial driver \
+│   ├── roller_setting.ino \
+│   └── roller_drive.py \
+├── #link(repo + "/src/vision")[`vision/`] \# YOLO inference + training + dataset collection \
+│   ├── video_node.py \
+│   ├── cv_config.py \
+│   ├── training/ \
+│   │   ├── dataset_collect.py \
+│   │   └── model_training.py \
+│   └── mlmodel/ \
+│       └── pt2onnx.py \
+├── #link(repo + "/src/lidar")[`lidar/`] \# RPLidar driver \
+│   └── lidar_parse.py \
+├── #link(repo + "/src/distance")[`distance/`] \# IR distance sensor subscriber \
+│   └── distance_sub.py \
+└── env_config.py \# Global logging + debug configuration
 
 == Contact
 
 // + *Technical Support Email:* `support@courtsweeper.example.com`
-+ *Open-Source Repository:* #link("https://github.com/RamessesN/CourtSweeper")
++ *Open-Source Repository:* https://github.com/RamessesN/CourtSweeper
++ *RoboMaster-SDK-Ultra (forked SDK):* https://github.com/RamessesN/Robomaster-SDK-Ultra
 + *Issue Reporting:* Please submit bug reports or feature requests via GitHub Issues
