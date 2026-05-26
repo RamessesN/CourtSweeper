@@ -89,14 +89,14 @@ To achieve reliable and rapid ball collection, a custom dual-roller intake mecha
 To ensure precise operational boundary gridding and efficient path planning (as outlined in the software architecture~Fig.\ref{fig:fsm_overview}), the Courtsweeper incorporates a dedicated 2D LiDAR sensor. This sensor provides robust 2D scanning of the court environment and potential obstacles (see \S\ref{sec:theory_perception} for the operating principle).
 
 \begin{itemize}
-  \item \textbf{Sensor Details:} The selected hardware is the YDLIDAR X3-YB-1 triangulation-based LiDAR. It is mounted at the rear of the chassis and interfaces with the Jetson Orin NX via a customized USB-serial connection.
-  \item \textbf{Specifications:} The X3-YB-1 offers a maximum distance range of up to 10 meters, enabling comprehensive court coverage. Key operational parameters include a sampling frequency of 4000 Hz, a standard rotating frequency of 7 Hz, and an angular resolution of 0.6$^\circ$.
+  \item \textbf{Sensor Details:} The selected hardware is the RPLidar A1M8 triangulation-based LiDAR. It is mounted at the rear of the chassis and interfaces with the Jetson Orin NX via a customized USB-serial connection.
+  \item \textbf{Specifications:} The A1M8 offers a maximum distance range of up to 12 meters, enabling comprehensive court coverage. Key operational parameters include a sampling frequency of 8000 Hz, a standard rotating frequency of 7 Hz, and an angular resolution of $\le 1^\circ$.
 \end{itemize}
 
 \begin{figure}[!htb]
   \centering
   \includegraphics[width=0.4\linewidth]{figures/fig_lidar.pdf}
-  \caption{A physical picture of the YDLIDAR X3-YB-1 LiDAR sensor.}
+  \caption{A physical picture of the RPLidar A1M8 LiDAR sensor.}
   \label{fig_lidar}
 \end{figure}
 
