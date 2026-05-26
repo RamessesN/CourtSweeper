@@ -10,7 +10,7 @@
 ])
 
 #set heading(numbering: "1.")
-#show heading: set text(red)
+#show heading: set text(blue)
 
 #set table(
   stroke: (x, y) => {
@@ -22,7 +22,7 @@
     (bottom: 0.5pt)
   },
   // gutter: 0.2em,
-  fill: (x, y) => if y == 0 { orange },
+  fill: (x, y) => if y == 0 { blue },
   inset: (left: 0.5em, right: 0.5em),
 )
 
@@ -39,7 +39,7 @@
   }
 }
 
-#show figure.caption: set text(red)
+#show figure.caption: set text(blue)
 #show figure.where(
   kind: table,
 ): set figure.caption(position: top)
@@ -200,7 +200,7 @@ The FP16 half-precision engine reduces inference latency by approximately $2 tim
 
 == LiDAR Triangulation Principle
 
-The YDLIDAR X3-YB-1 operates on the laser triangulation principle. An infrared laser emitter projects a spot onto the target surface; the reflected spot is imaged by a CMOS sensor at a known baseline offset from the emitter. The distance $d$ to the target is recovered by solving the triangle formed by the laser axis, the lens optical axis, and the reflected ray path:
+The RPLidar A1M8 operates on the laser triangulation principle. An infrared laser emitter projects a spot onto the target surface; the reflected spot is imaged by a CMOS sensor at a known baseline offset from the emitter. The distance $d$ to the target is recovered by solving the triangle formed by the laser axis, the lens optical axis, and the reflected ray path:
 
 $ d = (b dot f) / (Delta x) $
 
@@ -211,10 +211,10 @@ where $b$ is the baseline distance, $f$ the receiver lens focal length, and $Del
     columns: (auto, 1fr, 1fr, 1fr, 1fr, auto),
     align: center + horizon,
     table.header([Parameter], [Min.], [Typical], [Max.], [Units], [Remarks]),
-    [Sampling rate], [], table.cell(fill: aqua)[4000], [], [Hz], [Points per second],
-    [Scan frequency], [], table.cell(fill: aqua)[7], [], [Hz], [Motor rotation],
-    [Angular resolution], [0.6], table.cell(fill: aqua)[], [], [#sym.degree], [At 7 Hz],
-    [Range], [0.05], table.cell(fill: aqua)[], [10], [m], [Indoor, 80% reflectivity],
+    [Sampling rate], [], table.cell(fill: aqua)[8000], [], [Hz], [Points per second],
+    [Scan frequency], [], table.cell(fill: aqua)[7], [], [Hz], [Motor rotation, 1--10\,Hz adjustable],
+    [Angular resolution], [], table.cell(fill: aqua)[0.9], [$<= 1$], [#sym.degree], [At 7\,Hz],
+    [Range], [0.15], table.cell(fill: aqua)[], [12], [m], [Indoor, 80\% reflectivity],
     [Minimum filtering threshold], [], table.cell(fill: aqua)[20], [], [mm], [`MIN_DIST_MM`],
   ),
   caption: [LiDAR Operating Parameters],
