@@ -14,17 +14,12 @@
 
 #set table(
   stroke: (x, y) => {
-    let h = if y > 0 {
-      (top: 1pt)
+    if x == 0 {
+      (right: 0.75pt)
     } else {
-      (top: none)
+      (right: none)
     }
-    let v = if x == 1 {
-      (left: 1pt)
-    } else {
-      (left: none)
-    }
-    (top: h.top, left: v.left, bottom: none, right: none)
+    (bottom: 0.5pt)
   },
   // gutter: 0.2em,
   fill: (x, y) => if y == 0 { orange },
@@ -101,15 +96,10 @@ For the CourtSweeper, the intrinsic parameters are approximated as $f_x = f_y = 
     // table.hline(stroke: 2pt),
     table.header([Parameter], [Value], [Min.], [Typical], [Max.], [Units]),
     // table.hline(stroke: 1pt),
-    table.hline(stroke: 0.5pt),
     [$f_x, f_y$ (focal length)], [$W$], [320], table.cell(fill: aqua)[640], [1280], [px],
-    table.hline(stroke: 0.5pt),
     [$c_x$ (principal point x)], [$W/2$], [160], table.cell(fill: aqua)[320], [640], [px],
-    table.hline(stroke: 0.5pt),
     [$c_y$ (principal point y)], [$H/2$], [90], table.cell(fill: aqua)[180], [360], [px],
-    table.hline(stroke: 0.5pt),
     [Distortion], [`plumb_bob`], [], table.cell(fill: aqua)[$k_i = 0$], [], [],
-    table.hline(stroke: 0.5pt),
   ),
   caption: [Camera Intrinsic Parameters],
 ) <tab:cam_intrinsics>
