@@ -52,21 +52,19 @@
 #set math.equation(numbering: "(1)")
 
 #set document(
-  title: [Theoretical Manual],
+  title: [Team 13],
 )
 
-
-#v(3fr)
 
 #title()
 
-#v(2fr)
+#v(1fr)
 
 #figure(
-  image("figures/courtsweeper.png", width: 60%),
+  image("figures/title.png", width: 100%),
 )
 
-#v(3fr)
+#v(1fr)
 
 #pagebreak()
 
