@@ -43,6 +43,9 @@
 #show figure.where(
   kind: table,
 ): set figure.caption(position: top)
+#show figure.where(
+  kind: table,
+): set block(breakable: true)
 
 #set math.equation(numbering: "(1)")
 
