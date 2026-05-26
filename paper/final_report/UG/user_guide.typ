@@ -1,12 +1,12 @@
 #set text(size: 14pt)
 
 #set document(
-  title: [Court Sweeper],
+  title: [CourtSweeper Mstr],
 )
-#show title: it => align(left, text(60pt, weight: "bold", luma(33.3%))[#it])
+#show title: it => align(left, text(54pt, luma(33.3%))[#it])
 
 #set page(footer: context [
-  *Court Sweeper*
+  *CourtSweeper*
   #h(1fr)
   #counter(page).display(
     "1/1",
@@ -71,18 +71,18 @@
 
 #v(1fr)
 
-#text(24pt, gray)[
+#text(24pt, luma(50%))[
   User Guide v1.2
 ]
 
-#text(18pt, gray)[
+#text(18pt, luma(50%))[
   2026.05
 ]
 
 #v(2fr)
 
 #figure(
-  image("figures/title.png", width: 60%),
+  image("figures/title_gray.png", width: 60%),
 )
 
 #v(2fr)
@@ -242,11 +242,11 @@ Mount the Jetson Orin NX module on the mid-deck of the chassis using screws or c
   gutter: 1em,
   align: bottom,
   [
-    #image("figures/fig_lidar.pdf", width: 60%)
+    #image("figures/a1m8-r6.jpg", width: 100%)
     #align(center, text(0.8em)[RPLidar A1M8 sensor])
   ],
   [
-    #image("figures/fig_jetson.pdf", width: 80%)
+    #image("figures/fig_jetson.pdf", width: 100%)
     #align(center, text(0.8em)[NVIDIA Jetson Orin NX edge computing unit])
   ],
 )
@@ -315,9 +315,24 @@ Open the App Store on your iPhone or iPad, search for *"CourtSweeper"*, and inst
 
 *Main HUD:* The central area renders the real-time MJPEG video stream from the robot's camera. The feed is overlaid with YOLO-detected tennis ball bounding boxes and a crosshair reticle, giving the operator real-time perception feedback.
 
+// #figure(
+//   image("figures/app_vision.png", width: 40%),
+//   caption: [Live camera feed with YOLO-detected tennis ball bounding boxes and crosshair reticle],
+// )
+
 #figure(
-  image("figures/app_vision.png", width: 40%),
-  caption: [Live camera feed with YOLO-detected tennis ball bounding boxes and crosshair reticle],
+  grid(
+    columns: (1fr, 1fr),
+    // gutter: 0.5em,
+    align: bottom,
+    [
+      #image("figures/app_vision.png", height: 24em)
+    ],
+    [
+      #image("figures/app_map.png", height: 24em)
+    ],
+  ),
+  caption: [The left shows a live camera feed with YOLO-detected tennis ball bounding boxes and crosshair reticle; while the right is a top-down court map view showing the robot's position, coverage path, and detected ball locations during autonomous mission execution],
 )
 
 *Virtual Joysticks (bottom-left):*
@@ -342,10 +357,10 @@ Open the App Store on your iPhone or iPad, search for *"CourtSweeper"*, and inst
 
 During autonomous operation, the app provides a top-down court map showing the robot's current position, the Boustrophedon coverage path, and detected ball locations.
 
-#figure(
-  image("figures/app_map.png", width: 40%),
-  caption: [Top-down court map view showing the robot's position, coverage path, and detected ball locations during autonomous mission execution],
-)
+// #figure(
+//   image("figures/app_map.png", width: 40%),
+//   caption: [Top-down court map view showing the robot's position, coverage path, and detected ball locations during autonomous mission execution],
+// )
 
 = Developer Environment Setup
 <dev>
