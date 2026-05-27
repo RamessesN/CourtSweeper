@@ -1,0 +1,54 @@
+\ieeesection[Theoretical Manual]{Theoretical Manual}
+\label{sec:theory}
+
+\textcolor{gray}{\rule{\linewidth}{3pt}}
+
+This section provides an overview of the mathematical and algorithmic foundations underpinning each subsystem of the CourtSweeper. For the complete formal derivations, parameter tables, and mathematical proofs, the reader is referred to the standalone \textbf{CourtSweeper Theoretical Manual} (\texttt{TM/theory\_manual.pdf}), which presents these topics in full detail. The subsections below summarise the scope of each theoretical domain and indicate where the corresponding design and implementation are described in the preceding chapters.
+
+% ============================================================
+\subsection{Perception Models}
+\label{sec:theory_perception}
+
+The perception subsystem is built on the standard pinhole camera model (intrinsic matrix $K$ and projection matrix $P$), Image-Based Visual Servoing (IBVS) for direct image-plane error computation, a nearest-target depth proxy via the bottom-$y$ heuristic, and the YOLOv6-Nano single-stage object detector (comprising EfficientRep backbone, Rep-PAN neck, and decoupled head). The LiDAR sensor operates on the laser triangulation principle, while the IR proximity sensor provides continuous range data. The camera model underpins the vision pipeline in Section~\ref{sec:cv}; the LiDAR and IR sensors are integrated in the hardware design (Section~\ref{sec:hardware}) and the reactive control loop (Section~\ref{sec:detailed_software}).
+
+% ============================================================
+\subsection{Mecanum Wheel Kinematics}
+\label{sec:theory_kinematics}
+
+The CourtSweeper employs two formulations of the Mecanum inverse kinematics: a full 3-DOF holonomic model ($v_x, v_y, \omega_z$) for Nav2-based autonomous navigation, and a reduced 2-DOF model ($v_f, v_t$) for reactive visual servoing. Both decompose platform-level velocity commands into per-wheel RPM targets. These equations are implemented in the chassis bridge (Section~\ref{sec:software}) and the reactive drive module (Section~\ref{sec:detailed_software}).
+
+% ============================================================
+\subsection{PID Control Theory}
+\label{sec:theory_pid}
+
+The reactive chassis controller employs two independent PID regulators in the standard parallel form. The lateral alignment controller (\texttt{pid\_turn}) drives the image-plane centroid offset to zero; the longitudinal approach controller (\texttt{pid\_forward}) regulates the IR-measured distance toward the ball-contact setpoint. The two controllers operate in a priority-ordered cascade that includes a blind-zone relay and a sliding-window ingestion confirmation detector. Their implementation and gain schedules are provided in Section~\ref{sec:detailed_software}.
+
+% ============================================================
+\subsection{Navigation and Planning Theory}
+\label{sec:theory_nav}
+
+Autonomous navigation rests on three pillars: pose-graph SLAM via \texttt{slam\_toolbox} (online asynchronous mode with Karto-style scan matching and non-linear least-squares optimisation), Adaptive Monte Carlo Localisation (AMCL) via a particle filter with KLD-sampling, and Nav2's Smac Hybrid-A* global planner combined with the Regulated Pure Pursuit local controller. The coverage strategy follows a Boustrophedon S-shaped pattern over a discretised occupancy grid. These algorithms are deployed in the SLAM and Nav2 pipelines described in Section~\ref{sec:software}.
+
+% ============================================================
+\subsection{Finite State Machine}
+\label{sec:theory_fsm}
+
+The behavioural logic is formally defined as a Mealy-type FSM $\mathcal{M} = (Q, \Sigma, \delta, q_0, F)$ with four states (IDLE, SEARCHING, TRACKING, INGESTING), nine input events spanning perception, sensor, timer, and UI triggers, and a transition function that governs both the autonomous mission workflow and interrupt handling. The hierarchical two-layer FSM architecture is detailed in Section~\ref{sec:event-recognition}, and the phase-3 reactive control implementation is presented in Section~\ref{sec:detailed_software}.
+
+% ============================================================
+\subsection{Coordinate Transformations}
+\label{sec:theory_transforms}
+
+The ROS2 TF tree defines rigid transformations among the \texttt{odom}, \texttt{base\_footprint}, \texttt{base\_link}, and \texttt{laser} frames. Euler-to-quaternion conversion and yaw normalisation prevent numerical drift; a coordinate sign convention distinguishes mapping mode (negated $x$ and yaw) from navigation mode (raw DJI coordinates). These transforms are implemented in the mapping and navigation bridges (Section~\ref{sec:software}).
+
+% ============================================================
+\subsection{Communication Protocol Specifications}
+\label{sec:theory_comms}
+
+Inter-process communication follows three distinct protocols: ROS2 topics (\texttt{/odom}, \texttt{/scan}, \texttt{/cmd\_vel}, \texttt{/camera/image/compressed}, \texttt{/camera/camera\_info}, \texttt{/tf}) bridging the DJI chassis with the SLAM and vision stacks; a UDP-based JSON command protocol from the iOS app to the Jetson; and a serial CSV protocol (115200 bps, 8N1) from the Jetson to the Arduino motor driver. The ROS2 bridge and Wi-Fi modes are specified in Section~\ref{sec:software}; the Arduino firmware is described in Section~\ref{sec:detailed_software}.
+
+% ============================================================
+\subsection{Motor Drive Theory}
+\label{sec:theory_motor}
+
+The dual-roller intake motors are driven by 8-bit PWM signals generated by the Arduino firmware, controlling two BTS7960 full H-bridge modules. A firmware-level communication watchdog halts all motors within 500\,ms of serial link loss. The PWM duty-cycle derivation, BTS7960 truth table, and command-parsing logic are presented in the Theoretical Manual; the corresponding implementation is in Section~\ref{sec:detailed_software}.

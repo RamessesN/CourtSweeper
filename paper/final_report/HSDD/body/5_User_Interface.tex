@@ -1,0 +1,67 @@
+\ieeesection[User Interface Design]{User Interface Design}
+\label{sec:ui_design}
+
+\textcolor{gray}{\rule{\linewidth}{3pt}}
+
+
+This section describes the user interface design of the CourtSweeper iOS application. Developed natively in Swift using the SwiftUI framework, the mobile application serves as the primary remote command center and implements the \textbf{iOS Interrupt Control Layer} of the hierarchical FSM (Section~\ref{sec:event-recognition}). It connects directly to the Jetson Orin NX's localized Wi-Fi hotspot, providing real-time situational awareness, manual teleoperation capabilities, high-priority interrupt commands, and system telemetry monitoring.
+
+\begin{figure}[!htb]
+  \centering
+  \includegraphics[width=0.8\textwidth]{figures/fig_ui.pdf}
+  \caption{The software architecture and data flow for the CourtSweeper iOS application, illustrating the centralized SwiftUI core connected via bidirectional Wi-Fi and UDP sockets to external Jetson computing units, and featuring functional breakdowns of main dashboard, teleoperation, and telemetry modules.}
+  \label{fig_ui}
+\end{figure}
+
+
+\subsection{Main Dashboard \& Video HUD}
+\label{sec:main-interface}
+The primary interface is designed as a landscape-oriented Heads-Up Display (HUD) to maximize the operator's field of view. The core component of this view is the video presentation layer.
+
+\begin{figure}[!htb]
+  \centering
+  \begin{minipage}{0.45\linewidth}
+    \centering
+    \includegraphics[height=216pt]{figures/app_vision}
+  \end{minipage}
+  % \hfill
+  \begin{minipage}{0.45\linewidth}
+    \centering
+    \includegraphics[height=216pt]{figures/app_map}
+  \end{minipage}
+  % \includegraphics[width=0.75\textwidth]{figures/iOS_app.png}
+  \caption{User interface layout of the CourtSweeper iOS application. The primary HUD renders the low-latency MJPEG video stream overlaid with real-time YOLO bounding boxes. The lower panel provides virtual joysticks for holonomic teleoperation and manual override switches for the system's Finite State Machine (FSM).}
+  \label{fig_hud}
+\end{figure}
+
+\begin{itemize}
+  \item \textbf{Video Streaming Rendering:} Instead of relying on complex and latency-prone H.264 decoders on the client side, the app utilizes a lightweight \texttt{WKWebView} component to render the MJPEG video stream broadcasted by the Jetson unit. 
+
+  \item \textbf{AR Overlay:} The AI-processed bounding boxes, target crosshairs, and ball coordinates are overlaid directly onto the video feed, providing the operator with intuitive, real-time feedback on the YOLO perception module's performance.
+\end{itemize}
+
+
+\subsection{Teleoperation \& Control Panel}
+\label{sec:window}
+Superimposed on the lower sections of the HUD is the Control Panel, designed for ergonomic thumb access on an iPhone or iPad.
+
+\begin{itemize}
+  \item \textbf{Virtual Joysticks:} Implemented via SwiftUI drag gestures, the left joystick dictates the omnidirectional translational movement ($V_x, V_y$) of the Mecanum chassis, while the right joystick controls rotational velocity ($\omega$). 
+
+  \item \textbf{FSM Override Switches:} A prominent set of toggle buttons implements the upper-layer FSM interrupt commands described in Section~\ref{sec:event-recognition}. The \texttt{E-STOP} button transmits an emergency stop command that immediately engages chassis braking and suspends all autonomous logic. The \texttt{RECALL} button triggers a one-touch recall, commanding Nav2 to navigate the robot back to the origin pose. The \texttt{AUTO / MANUAL} toggle switches the robot between autonomous mission execution and manual teleoperation mode.
+
+  \item \textbf{Command Transmission:} Control inputs are serialized into lightweight JSON packets and transmitted to the Jetson's Python server via low-latency UDP sockets using Apple's native \texttt{Network} framework.
+\end{itemize}
+
+
+\subsection{Telemetry \& Log Console}
+\label{sec:log-window}
+To facilitate debugging and monitor system health during field tests, a collapsible Log Console is integrated into the interface.
+
+\begin{itemize}
+  \item \textbf{Health Monitoring:} Displays critical hardware telemetry parsed from the DJI SDK, including the 3S battery voltage (preventing over-discharge) and the Jetson's CPU/GPU thermal states.
+
+  \item \textbf{State Machine Tracker:} A dynamic label continuously reflects the robot's current FSM state from the lower-layer autonomous workflow (e.g., \textit{MAPPING $\rightarrow$ NAVIGATING $\rightarrow$ INTERCEPTING $\rightarrow$ RETRIEVING $\rightarrow$ SCANNING}), as well as any active upper-layer interrupt state (\textit{E-STOP} or \textit{RECALLING}).
+
+  \item \textbf{Debug Terminal:} A scrolling text view (implemented via \texttt{ScrollView} in SwiftUI) outputs real-time network connection statuses, ping latency, and critical error logs thrown by the Python backend.
+\end{itemize}
