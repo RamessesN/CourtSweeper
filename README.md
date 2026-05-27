@@ -1,6 +1,6 @@
 <div align="center"> 
     <h1> CourtSweeper </h1>
-    <h2> A Vision-Based Tennis Ball Retriever with Dual-Roller Intake Mechanism. </h2>
+    <h2> A Vision-Based Tennis Ball Retriever with Dual-Roller Intake Mechanism </h2>
 </div>
 
 <img src="./doc/figures/ouc.png" alt="ouc_alt" title="ouc_img">
@@ -28,7 +28,9 @@ This repository contains the software and hardware integration code for an auton
 ---
 
 ## II. Demonstration
-TODO
+<p align="center">
+    <img src="./doc/figures/demo.gif" width=600 alt="demo">
+</p>
 
 ---
 
